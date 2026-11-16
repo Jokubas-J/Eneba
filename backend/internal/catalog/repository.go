@@ -121,21 +121,12 @@ func orderClause(sort Sort, words []string, arg func(any) string) (string, error
 func (r *Repository) List(ctx context.Context, f ListFilter, limit, offset int) ([]ProductCard, int, error) {
 	q := buildQuery(f)
 
-	// One read-only transaction for both queries. It is needed for SET LOCAL below,
-	// and "read only" lets PostgreSQL refuse any write by mistake.
-	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	tx, err := r.beginRead(ctx)
 	if err != nil {
-		return nil, 0, fmt.Errorf("begin: %w", err)
+		return nil, 0, err
 	}
 	// Nothing is written, so there is nothing to commit; rolling back just ends it.
 	defer tx.Rollback(ctx)
-
-	// The "<%" operator used by the search compares against this setting. The third
-	// argument "true" makes it local to this transaction (like SET LOCAL), so the
-	// pooled connection goes back with its default.
-	if _, err := tx.Exec(ctx, `SELECT set_config('pg_trgm.word_similarity_threshold', $1, true)`, similarityThreshold); err != nil {
-		return nil, 0, fmt.Errorf("set similarity threshold: %w", err)
-	}
 
 	// Two queries: the count needs no sorting or paging, and unlike a
 	// "count(*) OVER ()" column it still works when the requested page is empty.
@@ -187,4 +178,123 @@ func (r *Repository) List(ctx context.Context, f ListFilter, limit, offset int) 
 		return nil, 0, fmt.Errorf("read product rows: %w", err)
 	}
 	return items, total, nil
+}
+
+// beginRead starts a read-only transaction prepared for the search conditions.
+//
+// A transaction is needed because the similarity threshold is set with
+// transaction-local scope; "read only" makes PostgreSQL refuse any write by mistake.
+func (r *Repository) beginRead(ctx context.Context) (pgx.Tx, error) {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return nil, fmt.Errorf("begin: %w", err)
+	}
+	// The "<%" operator used by the search compares against this setting. The third
+	// argument "true" makes it local to this transaction (like SET LOCAL), so the
+	// pooled connection goes back with its default.
+	_, err = tx.Exec(ctx, `SELECT set_config('pg_trgm.word_similarity_threshold', $1, true)`, similarityThreshold)
+	if err != nil {
+		tx.Rollback(ctx)
+		return nil, fmt.Errorf("set similarity threshold: %w", err)
+	}
+	return tx, nil
+}
+
+// Facets returns, for every filter group, each option with the number of products
+// the store would show if that option were ticked.
+//
+// Each group is counted with all the OTHER filters applied but not its own. With
+// "Steam" ticked, the platform group must still say how many GOG products there
+// are, otherwise every unticked platform would show 0 and adding a second platform
+// would look pointless. So each group needs its own WHERE clause, and therefore its
+// own query; the four are sent together in one batch (one network round trip).
+func (r *Repository) Facets(ctx context.Context, f ListFilter) (Facets, error) {
+	// For each group: the filter with that group's own selection removed.
+	// "f" is passed by value, so each assignment below changes only a copy.
+	withoutPlatforms, withoutRegions, withoutGenres, withoutTypes := f, f, f, f
+	withoutPlatforms.Platforms = nil
+	withoutRegions.Regions = nil
+	withoutGenres.Genres = nil
+	withoutTypes.Types = nil
+
+	batch := &pgx.Batch{}
+
+	// The option list comes from the lookup table and is LEFT JOINed to the matching
+	// products, so an option with no match is still returned, with count 0.
+	// count(l.id) counts only joined rows: for an option without products the join
+	// yields one row of NULLs, which count(column) ignores (count(*) would say 1).
+	q := buildQuery(withoutPlatforms)
+	batch.Queue(`
+		SELECT o.slug, o.name, count(l.id)::int
+		FROM platforms o
+		LEFT JOIN (SELECT id, platform_slug FROM product_listing `+q.where()+`) l ON l.platform_slug = o.slug
+		GROUP BY o.id
+		ORDER BY count(l.id) DESC, o.name`, q.args...)
+
+	q = buildQuery(withoutRegions)
+	batch.Queue(`
+		SELECT o.slug, o.name, count(l.id)::int
+		FROM regions o
+		LEFT JOIN (SELECT id, region_slug FROM product_listing `+q.where()+`) l ON l.region_slug = o.slug
+		GROUP BY o.id
+		ORDER BY count(l.id) DESC, o.name`, q.args...)
+
+	// A product is counted once under each of its genres, so the genre counts can
+	// add up to more than the number of products. That is intended.
+	q = buildQuery(withoutGenres)
+	batch.Queue(`
+		SELECT o.slug, o.name, count(l.product_id)::int
+		FROM genres o
+		LEFT JOIN (
+			SELECT link.product_id, link.genre_id
+			FROM product_listing
+			JOIN product_genres link ON link.product_id = product_listing.id
+			`+q.where()+`
+		) l ON l.genre_id = o.id
+		GROUP BY o.id
+		ORDER BY count(l.product_id) DESC, o.name`, q.args...)
+
+	// Product types have no lookup table; the options are the types that exist.
+	q = buildQuery(withoutTypes)
+	batch.Queue(`
+		SELECT o.product_type, o.product_type, count(l.id)::int
+		FROM (SELECT DISTINCT product_type FROM products) o
+		LEFT JOIN (SELECT id, product_type FROM product_listing `+q.where()+`) l ON l.product_type = o.product_type
+		GROUP BY o.product_type
+		ORDER BY count(l.id) DESC, o.product_type`, q.args...)
+
+	tx, err := r.beginRead(ctx)
+	if err != nil {
+		return Facets{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	results := tx.SendBatch(ctx, batch)
+	// The connection is busy until the batch results are closed.
+	defer results.Close()
+
+	// Results come back in the order the queries were queued.
+	var facets Facets
+	for _, group := range []*[]FacetOption{&facets.Platforms, &facets.Regions, &facets.Genres, &facets.Types} {
+		rows, err := results.Query()
+		if err != nil {
+			return Facets{}, fmt.Errorf("facet query: %w", err)
+		}
+		options := []FacetOption{}
+		for rows.Next() {
+			var option FacetOption
+			if err := rows.Scan(&option.Slug, &option.Name, &option.Count); err != nil {
+				rows.Close()
+				return Facets{}, fmt.Errorf("read facet row: %w", err)
+			}
+			options = append(options, option)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return Facets{}, fmt.Errorf("read facet rows: %w", err)
+		}
+		// "group" is a pointer to one of the four fields of facets.
+		*group = options
+	}
+	return facets, nil
 }

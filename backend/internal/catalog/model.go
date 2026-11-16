@@ -75,12 +75,37 @@ type ProductCard struct {
 	OfferCount         int  `json:"offerCount"` // offers that can be bought right now
 }
 
-// ListResult is one page of products plus the size of the whole result.
+// ListResult is one page of products plus the size of the whole result and the
+// options of the filter sidebar.
 type ListResult struct {
 	Items    []ProductCard `json:"items"`
 	Total    int           `json:"total"`
 	Page     int           `json:"page"`
 	PageSize int           `json:"pageSize"`
+	Facets   Facets        `json:"facets"`
+}
+
+// FacetOption is one checkbox of a filter group: its value, its label and how many
+// products the store would list with it ticked.
+type FacetOption struct {
+	Slug  string `json:"slug"`
+	Name  string `json:"name"`
+	Count int    `json:"count"`
+}
+
+// Facets holds the options of every filter group.
+type Facets struct {
+	Platforms []FacetOption `json:"platforms"`
+	Regions   []FacetOption `json:"regions"`
+	Genres    []FacetOption `json:"genres"`
+	Types     []FacetOption `json:"types"`
+}
+
+// typeNames are the display names of the product types (the database stores only
+// the short code).
+var typeNames = map[string]string{
+	"game": "Game",
+	"dlc":  "DLC",
 }
 
 // DiscountPercent returns how far price is below original, as a whole percentage

@@ -48,7 +48,17 @@ func (s *Service) List(ctx context.Context, f ListFilter) (ListResult, error) {
 	}
 	addDiscounts(items)
 
-	return ListResult{Items: items, Total: total, Page: f.Page, PageSize: PageSize}, nil
+	facets, err := s.repo.Facets(ctx, f)
+	if err != nil {
+		return ListResult{}, err
+	}
+	for i := range facets.Types {
+		if name, ok := typeNames[facets.Types[i].Slug]; ok {
+			facets.Types[i].Name = name
+		}
+	}
+
+	return ListResult{Items: items, Total: total, Page: f.Page, PageSize: PageSize, Facets: facets}, nil
 }
 
 // Suggest returns the few best product matches for a partly typed query: the data

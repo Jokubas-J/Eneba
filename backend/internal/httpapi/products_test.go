@@ -172,6 +172,12 @@ func TestListProductsJSONShape(t *testing.T) {
 			{ID: 8, Slug: "delta", Name: "Delta", Type: "game"}, // sold out: no prices
 		},
 		Total: 2, Page: 1, PageSize: 24,
+		Facets: catalog.Facets{
+			Platforms: []catalog.FacetOption{{Slug: "steam", Name: "Steam", Count: 2}},
+			Regions:   []catalog.FacetOption{{Slug: "global", Name: "Global", Count: 2}},
+			Genres:    []catalog.FacetOption{},
+			Types:     []catalog.FacetOption{{Slug: "game", Name: "Game", Count: 2}},
+		},
 	}}
 
 	rec := get(t, lister, "/api/products")
@@ -187,7 +193,13 @@ func TestListProductsJSONShape(t *testing.T) {
 			 "platform": {"slug": "", "name": ""}, "region": {"slug": "", "name": ""},
 			 "priceCents": null, "originalPriceCents": null, "discountPercent": null, "offerCount": 0}
 		],
-		"total": 2, "page": 1, "pageSize": 24
+		"total": 2, "page": 1, "pageSize": 24,
+		"facets": {
+			"platforms": [{"slug": "steam", "name": "Steam", "count": 2}],
+			"regions": [{"slug": "global", "name": "Global", "count": 2}],
+			"genres": [],
+			"types": [{"slug": "game", "name": "Game", "count": 2}]
+		}
 	}`
 	var gotValue, wantValue any
 	if err := json.Unmarshal(rec.Body.Bytes(), &gotValue); err != nil {
