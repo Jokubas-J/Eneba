@@ -1,0 +1,21 @@
+# Secrets: never commit real env files (only .env.example)
+.env
+.env.*
+!.env.example
+
+# Local Claude Code settings (machine-specific permissions)
+.claude/settings.local.json
+
+# Dependencies and build output
+node_modules/
+dist/
+build/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# The assignment brief is not ours to publish
+*.pdf
