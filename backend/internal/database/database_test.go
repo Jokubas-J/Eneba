@@ -16,20 +16,12 @@ import (
 )
 
 func TestConnectAndMigrate(t *testing.T) {
-	url := testdb.URL(t)
+	// Open already connects and migrates once, holding the shared test lock.
+	pool := testdb.Open(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	pool, err := database.Connect(ctx, url)
-	if err != nil {
-		t.Fatalf("Connect() error = %v", err)
-	}
-	defer pool.Close()
-
-	if err := database.Migrate(ctx, pool); err != nil {
-		t.Fatalf("Migrate() error = %v", err)
-	}
 	// Running it again must be a no-op: the server calls Migrate at every start.
 	if err := database.Migrate(ctx, pool); err != nil {
 		t.Fatalf("second Migrate() error = %v", err)
