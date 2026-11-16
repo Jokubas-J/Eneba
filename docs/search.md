@@ -140,6 +140,9 @@ not offer the nearest wrong game instead.
 - **Roman numerals:** `gta 5` does not find *Grand Theft Auto V* (the name says "V"). `gta` does.
 - **Heavier misspellings:** a word with several errors falls below the threshold (`asasin` scores
   0.40 against *Assassin's*; `assasins` at 0.80 is found).
+- **Typos in very short words:** a 3-4 letter word has so few trigrams that one wrong letter
+  drops it below the threshold: `resident evl` finds nothing (`evl` scores 0.50 against *evil*),
+  while `residnt evil` works.
 - **Very short typos tie:** `eldn` alone scores 0.60 against both *Elden Ring* and *The Elder
   Scrolls*, so popularity decides the order. `eldn ring` is unambiguous.
 - **No synonyms or translations**, and no "did you mean" text suggestions (Eneba's dropdown shows

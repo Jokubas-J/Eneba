@@ -1,8 +1,53 @@
 // All calls to the backend go through this file, so there is one place that knows
 // how requests are made and how failures are reported.
+//
+// The types below mirror the JSON written by the Go structs in
+// backend/internal/catalog/model.go. Nothing checks at runtime that they agree; the
+// backend's JSON-shape test is what keeps that side of the contract fixed.
 
 export type Health = {
   status: string
+}
+
+export type Named = {
+  slug: string
+  name: string
+}
+
+export type ProductCard = {
+  id: number
+  slug: string
+  name: string
+  type: string
+  coverUrl: string
+  platform: Named
+  region: Named
+  // The three price fields are null when no offer is in stock (sold out).
+  priceCents: number | null
+  originalPriceCents: number | null
+  discountPercent: number | null
+  offerCount: number
+}
+
+export type FacetOption = {
+  slug: string
+  name: string
+  count: number
+}
+
+export type Facets = {
+  platforms: FacetOption[]
+  regions: FacetOption[]
+  genres: FacetOption[]
+  types: FacetOption[]
+}
+
+export type ProductList = {
+  items: ProductCard[]
+  total: number
+  page: number
+  pageSize: number
+  facets: Facets
 }
 
 // Fetches a JSON resource from our API. The path is always relative ("/api/..."):
@@ -21,4 +66,9 @@ async function getJSON<T>(path: string): Promise<T> {
 
 export function fetchHealth(): Promise<Health> {
   return getJSON<Health>('/api/healthz')
+}
+
+// query is an already encoded query string without the "?", e.g. "platform=steam&page=2".
+export function fetchProducts(query: string): Promise<ProductList> {
+  return getJSON<ProductList>(query ? `/api/products?${query}` : '/api/products')
 }
