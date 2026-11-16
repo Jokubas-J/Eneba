@@ -13,7 +13,7 @@ func TestHealth(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/healthz", nil)
 
-	NewRouter().ServeHTTP(rec, req)
+	NewRouter(nil).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
@@ -46,7 +46,7 @@ func TestRouterRejectsWrongMethodAndUnknownPath(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			NewRouter().ServeHTTP(rec, httptest.NewRequest(tt.method, tt.path, nil))
+			NewRouter(nil).ServeHTTP(rec, httptest.NewRequest(tt.method, tt.path, nil))
 
 			if rec.Code != tt.want {
 				t.Errorf("%s %s: status = %d, want %d", tt.method, tt.path, rec.Code, tt.want)

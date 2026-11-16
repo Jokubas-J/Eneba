@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Jokubas-J/Eneba/backend/internal/catalog"
 	"github.com/Jokubas-J/Eneba/backend/internal/config"
 	"github.com/Jokubas-J/Eneba/backend/internal/database"
 	"github.com/Jokubas-J/Eneba/backend/internal/httpapi"
@@ -48,11 +49,16 @@ func run() error {
 		return err
 	}
 
+	// Dependencies are wired by hand, innermost first: repository (SQL) -> service
+	// (rules) -> router (HTTP). No dependency-injection container: the whole object
+	// graph of the program is readable in these lines.
+	products := catalog.NewService(catalog.NewRepository(pool))
+
 	// http.ListenAndServe(addr, handler) would be shorter, but it has no timeouts at
 	// all: a client that connects and sends nothing would hold a connection forever.
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           httpapi.NewRouter(),
+		Handler:           httpapi.NewRouter(products),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
