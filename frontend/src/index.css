@@ -1,0 +1,4 @@
+/* Tailwind v4 is configured in CSS: this one import brings in the base styles and
+   all utility classes. The design tokens from docs/design-reference.md will be
+   added below in an @theme block when the page shell is built. */
+@import 'tailwindcss';
