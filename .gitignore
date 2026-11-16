@@ -6,6 +6,9 @@
 # Local Claude Code settings (machine-specific permissions)
 .claude/settings.local.json
 
+# Personal strings the log exporter must redact (listing them in git would publish them)
+.claude/redact.local.txt
+
 # Dependencies and build output
 node_modules/
 dist/

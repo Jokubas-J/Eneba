@@ -114,9 +114,32 @@ function loadEnvSecrets() {
     .sort((a, b) => b[1].length - a[1].length); // longest first, so substrings do not break longer values
 }
 
+// Personal strings (for example the author's private e-mail address) that must not
+// appear in the published logs. They are listed one per line in a git-ignored file,
+// because writing them into this committed script would publish exactly what we are
+// trying to hide. Lines starting with "#" are comments.
+const LOCAL_REDACT_FILE = path.join(PROJECT_DIR, '.claude', 'redact.local.txt');
+
+function loadLocalRedactions() {
+  let lines = [];
+  try {
+    lines = fs.readFileSync(LOCAL_REDACT_FILE, 'utf8').split(/\r?\n/);
+  } catch {
+    return []; // no such file: nothing extra to redact
+  }
+  return lines
+    .map((line) => line.trim())
+    .filter((line) => line.length >= 4 && !line.startsWith('#'))
+    // Escape regex metacharacters so the line is matched literally; "i" because
+    // e-mail addresses are case-insensitive and may be typed with capitals.
+    .map((line) => new RegExp(line.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'));
+}
+
 function makeRedactor() {
   const envSecrets = loadEnvSecrets();
+  const personal = loadLocalRedactions();
   return (text) => {
+    for (const pattern of personal) text = text.replace(pattern, '[REDACTED:personal]');
     for (const [key, value] of envSecrets) text = text.split(value).join(`[REDACTED:${key}]`);
     for (const [pattern, replacement] of SECRET_PATTERNS) text = text.replace(pattern, replacement);
     return text;
