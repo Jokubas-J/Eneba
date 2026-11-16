@@ -1,0 +1,81 @@
+# Runs on every push and pull request: the same checks that are run by hand locally.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend (Go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    # A throw-away PostgreSQL that exists only for this job. The database tests
+    # therefore run in CI without any secret and without touching Neon.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: eneba_test
+        ports:
+          - 5432:5432
+        # The job's steps start only after the database accepts connections.
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Not a secret: it is the password of the temporary container above.
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/eneba_test?sslmode=disable
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          # Take the Go version from go.mod so CI and the Dockerfile cannot drift apart.
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Check formatting
+        # gofmt -l lists files whose formatting differs; any output fails the step.
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        # -p 1 runs the packages one after another: they will share one test database.
+        run: go test -p 1 ./...
+
+  frontend:
+    name: Frontend (TypeScript)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # "npm ci" installs exactly what package-lock.json says and fails if it is out of date.
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check and build
+        run: npm run build
