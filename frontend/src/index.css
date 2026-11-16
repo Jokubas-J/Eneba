@@ -1,4 +1,74 @@
-/* Tailwind v4 is configured in CSS: this one import brings in the base styles and
-   all utility classes. The design tokens from docs/design-reference.md will be
-   added below in an @theme block when the page shell is built. */
+/* Tailwind v4 is configured in CSS. The @theme block below is the single place where
+   the design tokens measured on eneba.com (docs/design-reference.md) live; every
+   token becomes utility classes, e.g. --color-yellow -> bg-yellow, text-yellow. */
 @import 'tailwindcss';
+
+@theme {
+  /* --- Colors (design-reference.md §2) ---
+     "initial" removes Tailwind's whole default palette, so a class such as
+     bg-blue-500 does not exist at all: only the colors below can be used. */
+  --color-*: initial;
+  --color-purple-base: #4618ac; /* page background */
+  --color-purple-light: #5825cc; /* raised panels */
+  --color-purple-dark: #351183; /* sunk panels, alternating bands */
+  --color-purple-deep: #1f0a4d; /* product card body */
+  --color-overlay-nav: rgb(0 0 0 / 0.25);
+  --color-overlay-row: rgb(0 0 0 / 0.3);
+  --color-overlay-input: rgb(0 0 0 / 0.2);
+  --color-overlay-item: rgb(0 0 0 / 0.12);
+  --color-overlay-footer: rgb(0 0 0 / 0.7);
+  --color-yellow: #fad318; /* primary buttons */
+  --color-teal: #63e3c2;
+  --color-green-region: #23c299;
+  --color-green-cashback: #84e916;
+  --color-pink-region: #e76a8c;
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-text-nav: #dcd8e6;
+  --color-text-muted: #b3aac9;
+  --color-text-faded: rgb(255 255 255 / 0.7);
+
+  /* --- Typography (§3) --- */
+  --font-sans: 'Metropolis', Arial, Helvetica, sans-serif;
+  /* Sizes that Tailwind's default scale (12/14/16/…) does not contain. Each has
+     its measured line height attached. */
+  --text-tiny: 10px;
+  --text-tiny--line-height: 15px;
+  --text-button: 15px;
+  --text-button--line-height: 15px;
+  --text-search: 19px;
+  --text-search--line-height: 19px;
+  --text-price: 22px;
+  --text-price--line-height: 22px;
+  --text-heading: 30px;
+  --text-heading--line-height: 37.5px;
+
+  /* --- Spacing (§4) ---
+     Eneba spaces everything in multiples of 5px, where Tailwind's default step is
+     4px. With this, p-1 = 5px, p-2 = 10px, p-4 = 20px, p-8 = 40px, h-7 = 35px. */
+  --spacing: 5px;
+  --container-page: 1200px; /* max-w-page */
+
+  /* --- Shadows (§4): the only three the design uses --- */
+  --shadow-*: initial;
+  --shadow-panel: 0 3px 9px rgb(0 0 0 / 0.25);
+  --shadow-tile: 0 7px 15px rgb(0 0 0 / 0.2);
+  --inset-shadow-*: initial;
+  --inset-shadow-input: inset 0 1px 3px #1f0a4d;
+
+  /* --- Radius (§4): corners are square; these are the only exceptions --- */
+  --radius-*: initial;
+  --radius-checkbox: 3px;
+  --radius-promo: 5px;
+  --radius-pill: 50px;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-purple-base);
+    color: var(--color-white);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 24px;
+  }
+}

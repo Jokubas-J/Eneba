@@ -22,3 +22,6 @@ Thumbs.db
 
 # The assignment brief is not ours to publish
 *.pdf
+
+# Screenshots and logs written by the Playwright tool during visual checks
+.playwright-mcp/
