@@ -10,9 +10,18 @@ import (
 // database. The HTTP layer turns it into a 400 response.
 var ErrInvalidFilter = errors.New("invalid filter")
 
-// maxPage bounds OFFSET. Far beyond any real catalog, it only stops a request such
-// as ?page=999999999 from making the database skip billions of rows.
-const maxPage = 10_000
+const (
+	// maxPage bounds OFFSET. Far beyond any real catalog, it only stops a request
+	// such as ?page=999999999 from making the database skip billions of rows.
+	maxPage = 10_000
+
+	// SuggestLimit is how many product hits the header search dropdown shows.
+	SuggestLimit = 6
+
+	// A one-letter query matches a large part of the catalog and helps nobody, so
+	// suggestions start at two characters.
+	minSuggestLength = 2
+)
 
 // Service holds the rules of the catalog that are not SQL and not HTTP.
 type Service struct {
@@ -28,20 +37,52 @@ func (s *Service) List(ctx context.Context, f ListFilter) (ListResult, error) {
 	if f.Page == 0 {
 		f.Page = 1
 	}
-	if f.Sort == "" {
-		f.Sort = SortPopular
-	}
+	f.Sort = resolveSort(f)
 	if err := validate(f); err != nil {
 		return ListResult{}, err
 	}
 
-	items, total, err := s.repo.List(ctx, f)
+	items, total, err := s.repo.List(ctx, f, PageSize, (f.Page-1)*PageSize)
 	if err != nil {
 		return ListResult{}, err
 	}
+	addDiscounts(items)
 
-	// The discount is derived here rather than stored: it can never disagree with
-	// the two prices it comes from.
+	return ListResult{Items: items, Total: total, Page: f.Page, PageSize: PageSize}, nil
+}
+
+// Suggest returns the few best product matches for a partly typed query: the data
+// of the search dropdown in the header.
+func (s *Service) Suggest(ctx context.Context, text string) ([]ProductCard, error) {
+	// Decided on the simplified query, so "  !! " or "a" never reaches the database.
+	words := NormalizeQuery(text)
+	if len(words) == 0 || (len(words) == 1 && len(words[0]) < minSuggestLength) {
+		return []ProductCard{}, nil
+	}
+
+	items, _, err := s.repo.List(ctx, ListFilter{Text: text, Sort: SortRelevance}, SuggestLimit, 0)
+	if err != nil {
+		return nil, err
+	}
+	addDiscounts(items)
+	return items, nil
+}
+
+// resolveSort picks the order when the visitor did not choose one: a search is
+// shown best match first, plain browsing most popular first.
+func resolveSort(f ListFilter) Sort {
+	if f.Sort != SortDefault {
+		return f.Sort
+	}
+	if len(NormalizeQuery(f.Text)) > 0 {
+		return SortRelevance
+	}
+	return SortPopular
+}
+
+// addDiscounts fills in DiscountPercent. The discount is derived here rather than
+// stored: it can never disagree with the two prices it comes from.
+func addDiscounts(items []ProductCard) {
 	for i := range items {
 		// &items[i] takes the element itself; "for _, p := range" would hand out a
 		// copy and the assignment below would be lost.
@@ -51,12 +92,10 @@ func (s *Service) List(ctx context.Context, f ListFilter) (ListResult, error) {
 			p.DiscountPercent = &discount
 		}
 	}
-
-	return ListResult{Items: items, Total: total, Page: f.Page, PageSize: PageSize}, nil
 }
 
 func validate(f ListFilter) error {
-	if _, ok := orderBy[f.Sort]; !ok {
+	if _, ok := orderBy[f.Sort]; !ok && f.Sort != SortRelevance {
 		return fmtInvalid("unknown sort")
 	}
 	if f.Page < 1 || f.Page > maxPage {

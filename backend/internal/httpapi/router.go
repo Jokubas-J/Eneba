@@ -12,13 +12,14 @@ import "net/http"
 // It returns the http.Handler interface rather than the concrete *http.ServeMux so
 // that main.go and the tests depend only on "something that can serve HTTP". Tests
 // call this same function, so they exercise the real routes, not a copy of them.
-func NewRouter(products ProductLister) http.Handler {
+func NewRouter(products Catalog) http.Handler {
 	mux := http.NewServeMux()
 
 	// Every route lives under /api because Vercel proxies only /api/* to this server;
 	// keeping the prefix here means paths are identical locally and in production.
 	mux.HandleFunc("GET /api/healthz", handleHealth)
 	mux.HandleFunc("GET /api/products", handleListProducts(products))
+	mux.HandleFunc("GET /api/search/suggest", handleSuggest(products))
 
 	return mux
 }

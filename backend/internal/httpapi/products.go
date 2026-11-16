@@ -11,14 +11,15 @@ import (
 	"github.com/Jokubas-J/Eneba/backend/internal/catalog"
 )
 
-// ProductLister is what the product handlers need from the catalog.
+// Catalog is what the product handlers need from the catalog.
 //
 // The interface is declared here, by the code that USES it, and *catalog.Service
 // satisfies it without saying so (Go interfaces are implicit; there is no
 // "implements" keyword). It lets the handler tests pass in a small fake instead of
 // a real service with a database behind it.
-type ProductLister interface {
+type Catalog interface {
 	List(ctx context.Context, filter catalog.ListFilter) (catalog.ListResult, error)
+	Suggest(ctx context.Context, text string) ([]catalog.ProductCard, error)
 }
 
 // maxFilterValues caps how many values one filter group may carry. The store has a
@@ -29,11 +30,12 @@ const maxFilterValues = 50
 //
 // Query parameters (all optional):
 //
+//	text                            search query (typos and partial names are fine)
 //	platform, region, genre, type   may be repeated: ?platform=steam&platform=gog
 //	price_min, price_max            whole cents, inclusive
-//	sort                            popular | price_asc | price_desc | newest | oldest | name
+//	sort                            relevance | popular | price_asc | price_desc | newest | oldest | name
 //	page                            1-based
-func handleListProducts(products ProductLister) http.HandlerFunc {
+func handleListProducts(products Catalog) http.HandlerFunc {
 	// The outer function runs once, when the router is built, and captures its
 	// dependency; the returned function runs for every request. This is the usual
 	// Go way to give a handler dependencies without global variables.
@@ -61,6 +63,7 @@ func handleListProducts(products ProductLister) http.HandlerFunc {
 // Whether the values make sense together (min <= max...) is the service's decision.
 func parseListFilter(query url.Values) (catalog.ListFilter, error) {
 	filter := catalog.ListFilter{
+		Text: query.Get("text"),
 		// query["platform"] is every value of a repeated parameter;
 		// query.Get would return only the first.
 		Platforms: query["platform"],
@@ -113,4 +116,23 @@ func optionalInt(query url.Values, name string) (*int, error) {
 		return nil, fmt.Errorf("%s must be a whole number", name)
 	}
 	return &value, nil
+}
+
+// suggestResponse is the body of GET /api/search/suggest. The list is wrapped in an
+// object so that fields can be added later without breaking the frontend.
+type suggestResponse struct {
+	Items []catalog.ProductCard `json:"items"`
+}
+
+// handleSuggest serves GET /api/search/suggest?q=..., the product hits of the
+// search dropdown in the header. It is called while the visitor types.
+func handleSuggest(products Catalog) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		items, err := products.Suggest(r.Context(), r.URL.Query().Get("q"))
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, suggestResponse{Items: items})
+	}
 }

@@ -18,9 +18,16 @@ import (
 // built from the URL and returns whatever the test prepared. No database involved.
 type fakeLister struct {
 	gotFilter catalog.ListFilter
+	gotText   string
 	called    bool
 	result    catalog.ListResult
 	err       error
+}
+
+func (f *fakeLister) Suggest(ctx context.Context, text string) ([]catalog.ProductCard, error) {
+	f.called = true
+	f.gotText = text
+	return f.result.Items, f.err
 }
 
 func (f *fakeLister) List(ctx context.Context, filter catalog.ListFilter) (catalog.ListResult, error) {
@@ -31,7 +38,7 @@ func (f *fakeLister) List(ctx context.Context, filter catalog.ListFilter) (catal
 
 func intPtr(v int) *int { return &v }
 
-func get(t *testing.T, lister ProductLister, target string) *httptest.ResponseRecorder {
+func get(t *testing.T, lister Catalog, target string) *httptest.ResponseRecorder {
 	t.Helper()
 	rec := httptest.NewRecorder()
 	NewRouter(lister).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
@@ -47,7 +54,12 @@ func TestListProductsParsesTheQuery(t *testing.T) {
 		{
 			name:  "no parameters gives the defaults",
 			query: "",
-			want:  catalog.ListFilter{Sort: catalog.SortPopular, Page: 1},
+			want:  catalog.ListFilter{Page: 1},
+		},
+		{
+			name:  "search text is passed on as typed",
+			query: "?text=Witchr+3&sort=relevance",
+			want:  catalog.ListFilter{Text: "Witchr 3", Sort: catalog.SortRelevance, Page: 1},
 		},
 		{
 			name:  "repeated parameters become lists",
@@ -55,7 +67,7 @@ func TestListProductsParsesTheQuery(t *testing.T) {
 			want: catalog.ListFilter{
 				Platforms: []string{"steam", "gog"}, Regions: []string{"europe"},
 				Genres: []string{"rpg", "action"}, Types: []string{"game"},
-				Sort: catalog.SortPopular, Page: 1,
+				Page: 1,
 			},
 		},
 		{
@@ -68,7 +80,7 @@ func TestListProductsParsesTheQuery(t *testing.T) {
 		{
 			name:  "empty values are treated as absent",
 			query: "?price_min=&sort=&page=",
-			want:  catalog.ListFilter{Sort: catalog.SortPopular, Page: 1},
+			want:  catalog.ListFilter{Page: 1},
 		},
 	}
 	for _, tt := range tests {
@@ -187,4 +199,40 @@ func TestListProductsJSONShape(t *testing.T) {
 	if !reflect.DeepEqual(gotValue, wantValue) {
 		t.Errorf("response = %s\nwant %s", rec.Body, want)
 	}
+}
+
+func TestSuggest(t *testing.T) {
+	t.Run("passes the query on and wraps the hits", func(t *testing.T) {
+		lister := &fakeLister{result: catalog.ListResult{Items: []catalog.ProductCard{{ID: 1, Slug: "alpha", Name: "Alpha"}}}}
+
+		rec := get(t, lister, "/api/search/suggest?q=witchr+3")
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", rec.Code)
+		}
+		if lister.gotText != "witchr 3" {
+			t.Errorf("query passed to the service = %q, want %q", lister.gotText, "witchr 3")
+		}
+		var body struct {
+			Items []struct {
+				Slug string `json:"slug"`
+			} `json:"items"`
+		}
+		if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+			t.Fatalf("response is not JSON: %v", err)
+		}
+		if len(body.Items) != 1 || body.Items[0].Slug != "alpha" {
+			t.Errorf("items = %+v, want the one hit", body.Items)
+		}
+	})
+
+	t.Run("a failure becomes 500 without internal details", func(t *testing.T) {
+		lister := &fakeLister{err: errors.New("connection refused to 10.0.0.5")}
+
+		rec := get(t, lister, "/api/search/suggest?q=abc")
+
+		if rec.Code != http.StatusInternalServerError || strings.Contains(rec.Body.String(), "10.0.0.5") {
+			t.Errorf("status = %d, body = %s", rec.Code, rec.Body)
+		}
+	})
 }

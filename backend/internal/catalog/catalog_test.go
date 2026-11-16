@@ -31,7 +31,8 @@ func TestDiscountPercent(t *testing.T) {
 
 func TestParseSort(t *testing.T) {
 	valid := map[string]Sort{
-		"":           SortPopular,
+		"":           SortDefault,
+		"relevance":  SortRelevance,
 		"popular":    SortPopular,
 		"price_asc":  SortPriceAsc,
 		"price_desc": SortPriceDesc,
@@ -44,9 +45,9 @@ func TestParseSort(t *testing.T) {
 		if !ok || got != want {
 			t.Errorf("ParseSort(%q) = %q, %v; want %q, true", input, got, ok, want)
 		}
-		// Every value the parser accepts must have an ORDER BY clause.
-		if _, exists := orderBy[got]; !exists {
-			t.Errorf("sort %q has no ORDER BY clause", got)
+		// Every value the parser accepts must end up with an ORDER BY clause.
+		if _, err := orderClause(resolveSort(ListFilter{Sort: got}), nil, nil); err != nil {
+			t.Errorf("sort %q has no ORDER BY clause: %v", got, err)
 		}
 	}
 	for _, input := range []string{"PRICE_ASC", "price", "id; DROP TABLE products", "popularity DESC"} {
@@ -56,7 +57,7 @@ func TestParseSort(t *testing.T) {
 	}
 }
 
-func TestBuildWhere(t *testing.T) {
+func TestBuildQueryFilters(t *testing.T) {
 	tests := []struct {
 		name      string
 		filter    ListFilter
@@ -107,11 +108,12 @@ func TestBuildWhere(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sql, args := buildWhere(tt.filter)
+			q := buildQuery(tt.filter)
+			sql, args := q.where(), q.args
 
 			if tt.wantEmpty {
 				if sql != "" || len(args) != 0 {
-					t.Fatalf("buildWhere() = %q, %v; want empty", sql, args)
+					t.Fatalf("where = %q, args = %v; want empty", sql, args)
 				}
 				return
 			}

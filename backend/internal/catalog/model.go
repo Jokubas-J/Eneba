@@ -9,6 +9,10 @@ package catalog
 type Sort string
 
 const (
+	// SortDefault means "the visitor did not choose": best match first when there
+	// is a search text, most popular first otherwise. The service resolves it.
+	SortDefault   Sort = ""
+	SortRelevance Sort = "relevance"
 	SortPopular   Sort = "popular"
 	SortPriceAsc  Sort = "price_asc"
 	SortPriceDesc Sort = "price_desc"
@@ -17,12 +21,10 @@ const (
 	SortName      Sort = "name"
 )
 
-// ParseSort converts a URL value into a Sort. The empty string means the default.
+// ParseSort converts a URL value into a Sort.
 func ParseSort(s string) (Sort, bool) {
 	switch Sort(s) {
-	case "":
-		return SortPopular, true
-	case SortPopular, SortPriceAsc, SortPriceDesc, SortNewest, SortOldest, SortName:
+	case SortDefault, SortRelevance, SortPopular, SortPriceAsc, SortPriceDesc, SortNewest, SortOldest, SortName:
 		return Sort(s), true
 	}
 	return "", false
@@ -37,6 +39,8 @@ const PageSize = 24
 // combined with AND ("(Steam or GOG) and Europe"), which is how the checkbox
 // filters on eneba.com behave. An empty group does not filter.
 type ListFilter struct {
+	// Text is the search query as typed. Empty means "no search".
+	Text      string
 	Platforms []string // platform slugs
 	Regions   []string // region slugs
 	Genres    []string // genre slugs
