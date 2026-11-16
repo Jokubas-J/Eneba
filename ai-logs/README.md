@@ -60,6 +60,9 @@ The logs are complete as a conversation record, with these deliberate difference
   (`sk_`, `pk_`, `rk_`, `whsec_`), JWTs, GitHub/Anthropic tokens, Claude account ids, passwords inside connection strings,
   `SOMETHING_SECRET=value`-style assignments, and every value found in the project's `.env` files
   (values that also appear in the committed `.env.example` are considered public and kept).
+- **Personal strings are redacted** in both formats and replaced with `[REDACTED:personal]`: the
+  author's private e-mail address. The strings to remove are listed in a git-ignored file
+  (`.claude/redact.local.txt`), because naming them in the committed script would publish them.
 - **Internal bookkeeping records are dropped** from the raw copy (cached API requests, file
   snapshots, account identifiers). Only `user`, `assistant` and `system` records are kept.
 - **Embedded binary files** (base64 images/PDFs returned by tools) are replaced with a placeholder.

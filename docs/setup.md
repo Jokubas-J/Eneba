@@ -44,8 +44,10 @@ the repository easier.
 
 ## 3. Environment variables — complete list
 
-The backend reads everything from environment variables. The frontend needs none: it calls
-`/api/...` on its own domain.
+The backend reads everything from environment variables. The frontend needs none in production:
+it calls `/api/...` on its own domain. Its only variable is the optional, development-only
+`API_PROXY_TARGET` in `frontend/.env` (default `http://localhost:8080`), which tells the Vite dev
+server where the Go server runs; it is not a secret and is not compiled into the browser bundle.
 
 | Variable | Secret? | Local `backend/.env` | Render (production) | Where the value comes from |
 |---|---|---|---|---|
@@ -63,6 +65,8 @@ Other places configuration lives:
 | Where | What | Secret? |
 |---|---|---|
 | `backend/.env.example` (committed) | every variable name above with a fake value | no |
+| `frontend/.env.example` (committed) | `API_PROXY_TARGET` with its default value | no |
+| `.claude/redact.local.txt` (git-ignored) | personal strings (e.g. a private e-mail address) that the log exporter removes from `ai-logs/` | personal, not committed |
 | `frontend/vercel.json` (committed) | rewrite `/api/*` → `https://<service>.onrender.com/api/*` | no — but I need the Render URL once the service exists |
 | Vercel project settings | nothing | — |
 | GitHub Actions | nothing (CI starts its own temporary Postgres and uses the simulated payment provider) | — |
