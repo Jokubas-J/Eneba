@@ -38,7 +38,7 @@ commit history and in `ai-logs/`.
 
 **Verified (the "to verify on day 2" list in PLAN §10)**
 - Steam endpoint: `https://store.steampowered.com/api/appdetails?appids=<id>&cc=lt&l=english`,
-  one app per request, no key. 249 requests at one per 1.6 s were never rate limited.
+  one app per request, no key. 249 requests at one per 1.6 s completed in about ten minutes.
 - Portrait cover pattern `…/store_item_assets/steam/apps/<id>/library_600x900.jpg` exists for 233
   of 236 games; the other three fall back to the landscape header image.
 - 13 of the 249 listed ids were skipped (free to play, delisted or without a price).
