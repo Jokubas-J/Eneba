@@ -7,6 +7,7 @@ import { maxLineQuantity } from '../cart/cartState.ts'
 import { Button, ButtonLink } from '../components/Button.tsx'
 import { CloseIcon, InfoIcon } from '../components/icons.tsx'
 import { Page } from '../components/Page.tsx'
+import { RemoteImage } from '../components/RemoteImage.tsx'
 import { formatPrice } from '../money.ts'
 
 // The cart (design-reference.md §5, screenshots 14 and 15): "My cart" with one row
@@ -147,7 +148,7 @@ function CartRow({ item, onQuantity, onRemove }: CartRowProps) {
   return (
     <li className="flex gap-4 bg-overlay-item p-4">
       <Link to={`/product/${item.product.slug}`} className="h-[84px] w-[60px] shrink-0 bg-purple-deep sm:h-[106px] sm:w-[75px]">
-        {item.product.coverUrl && <img src={item.product.coverUrl} alt="" className="size-full object-cover" />}
+        <RemoteImage src={item.product.coverUrl} className="size-full object-cover" />
       </Link>
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">

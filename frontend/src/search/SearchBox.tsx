@@ -4,6 +4,7 @@ import { type FormEvent, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { fetchSuggestions, type ProductCard } from '../api.ts'
 import { SearchIcon } from '../components/icons.tsx'
+import { RemoteImage } from '../components/RemoteImage.tsx'
 import { formatPrice } from '../money.ts'
 import {
   buildItems,
@@ -167,7 +168,7 @@ function ProductRow({ product }: { product: ProductCard }) {
   return (
     <span className="flex items-center gap-3 px-4 py-2">
       <span className="h-[84px] w-[60px] shrink-0 bg-purple-dark">
-        {product.coverUrl && <img src={product.coverUrl} alt="" className="size-full object-cover" />}
+        <RemoteImage src={product.coverUrl} className="size-full object-cover" />
       </span>
       <span className="min-w-0 flex-1">
         <span className="inline-block rounded-pill border border-teal px-2 text-xs leading-[20px] font-extrabold text-teal">

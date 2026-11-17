@@ -6,6 +6,7 @@ import { Button } from '../components/Button.tsx'
 import { CalendarIcon, GlobeIcon, HomeIcon, KeyIcon, MonitorIcon } from '../components/icons.tsx'
 import { Page } from '../components/Page.tsx'
 import { ProductCard } from '../components/ProductCard.tsx'
+import { RemoteImage } from '../components/RemoteImage.tsx'
 import { BuyBox } from '../product/BuyBox.tsx'
 import { formatDate } from '../product/formatDate.ts'
 import { Gallery } from '../product/Gallery.tsx'
@@ -71,7 +72,7 @@ function ProductView({ product }: { product: ProductDetail }) {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_350px]">
         <div className="flex min-w-0 flex-col gap-6 sm:flex-row">
           <div className="aspect-[224/316] w-[150px] shrink-0 bg-purple-dark sm:w-[224px]">
-            {product.coverUrl && <img src={product.coverUrl} alt="" className="size-full object-cover" />}
+            <RemoteImage src={product.coverUrl} className="size-full object-cover" />
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="text-title font-bold">{product.name}</h1>

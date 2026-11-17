@@ -1,36 +1,47 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Screenshot } from '../api.ts'
 import { ChevronIcon, CloseIcon } from '../components/icons.tsx'
+import { RemoteImage } from '../components/RemoteImage.tsx'
 
 // A row of screenshot thumbnails under the info tiles (176x99, as measured on
 // eneba.com). Clicking one opens it full size in a lightbox.
 export function Gallery({ screenshots, title }: { screenshots: Screenshot[]; title: string }) {
   // null = lightbox closed; a number = index of the screenshot being shown.
   const [open, setOpen] = useState<number | null>(null)
+  // Screenshots whose thumbnail could not be loaded from Steam are left out of the
+  // row and of the lightbox, instead of showing a broken image.
+  const [broken, setBroken] = useState<ReadonlySet<string>>(new Set())
+  const shown = screenshots.filter((shot) => !broken.has(shot.fullUrl))
 
-  if (screenshots.length === 0) return null
+  if (shown.length === 0) return null
 
   return (
     <>
       {/* On narrow screens the row scrolls sideways instead of wrapping. */}
       <ul className="flex gap-2 overflow-x-auto pb-1 [scrollbar-color:var(--color-purple-light)_transparent] [scrollbar-width:thin]" aria-label="Screenshots">
-        {screenshots.map((shot, index) => (
+        {shown.map((shot, index) => (
           <li key={shot.fullUrl} className="shrink-0">
             <button
               type="button"
               onClick={() => setOpen(index)}
-              aria-label={`Open screenshot ${index + 1} of ${screenshots.length}`}
+              aria-label={`Open screenshot ${index + 1} of ${shown.length}`}
               className="block h-[99px] w-[176px] bg-purple-dark focus-visible:outline-2 focus-visible:outline-yellow"
             >
-              <img src={shot.thumbnailUrl} alt="" loading="lazy" className="size-full object-cover hover:opacity-80" />
+              <RemoteImage
+                src={shot.thumbnailUrl}
+                loading="lazy"
+                fallback="hide"
+                onFail={() => setBroken((current) => new Set(current).add(shot.fullUrl))}
+                className="size-full object-cover hover:opacity-80"
+              />
             </button>
           </li>
         ))}
       </ul>
       {open !== null && (
         <Lightbox
-          screenshots={screenshots}
-          index={open}
+          screenshots={shown}
+          index={Math.min(open, shown.length - 1)}
           title={title}
           onIndexChange={setOpen}
           onClose={() => setOpen(null)}
@@ -91,7 +102,12 @@ function Lightbox({ screenshots, index, title, onIndexChange, onClose }: Lightbo
         <button type="button" onClick={() => go(-1)} aria-label="Previous screenshot" className="p-2 text-white">
           <ChevronIcon direction="left" className="size-8" />
         </button>
-        <img src={shot.fullUrl} alt="" className="max-h-[85vh] max-w-[85vw] object-contain" />
+        <RemoteImage
+          src={shot.fullUrl}
+          className="max-h-[85vh] max-w-[85vw] object-contain"
+          // The full image has no fixed size, so the placeholder needs one.
+          placeholderClassName="h-[50vh] w-[min(85vw,900px)]"
+        />
         <button type="button" onClick={() => go(1)} aria-label="Next screenshot" className="p-2 text-white">
           <ChevronIcon direction="right" className="size-8" />
         </button>

@@ -2,6 +2,7 @@ import { Link } from 'react-router'
 import type { ProductCard as Product } from '../api.ts'
 import { formatPrice } from '../money.ts'
 import { isUsableInEU } from '../region.ts'
+import { RemoteImage } from './RemoteImage.tsx'
 
 // Product card as measured on eneba.com (design-reference.md §5, screenshots 02-05):
 // dark body, 1px teal border, portrait cover with the platform strip over its lower
@@ -19,15 +20,12 @@ export function ProductCard({ product }: { product: Product }) {
       {/* aspect-[5/7] reserves the image's space before it loads, so the grid does
           not jump as covers arrive. */}
       <div className="relative aspect-[5/7] overflow-hidden bg-purple-dark">
-        {product.coverUrl && (
-          <img
-            src={product.coverUrl}
-            alt=""
-            // Covers below the first screen are fetched only when scrolled near.
-            loading="lazy"
-            className="size-full object-cover transition-transform duration-200 group-hover:scale-105"
-          />
-        )}
+        <RemoteImage
+          src={product.coverUrl}
+          // Covers below the first screen are fetched only when scrolled near.
+          loading="lazy"
+          className="size-full object-cover transition-transform duration-200 group-hover:scale-105"
+        />
         <div className="absolute inset-x-0 bottom-0 flex h-[22px] items-center justify-center bg-overlay-strip text-xs font-extrabold text-white/85">
           {product.platform.name}
         </div>
