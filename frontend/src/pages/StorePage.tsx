@@ -41,7 +41,7 @@ export function StorePage() {
     // The query string is part of the cache key: each distinct set of filters is
     // cached separately, and going back to a previous one shows it instantly.
     queryKey: ['products', apiQuery],
-    queryFn: () => fetchProducts(apiQuery),
+    queryFn: ({ signal }) => fetchProducts(apiQuery, signal),
     // While the next set of filters loads, keep showing the previous result (dimmed)
     // instead of flashing an empty page.
     placeholderData: keepPreviousData,

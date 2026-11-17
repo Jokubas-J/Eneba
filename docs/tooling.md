@@ -64,6 +64,44 @@ vendors; for anything third-party, read what it actually runs before installing.
 | Web search / fetch | Checking current docs (Go, Stripe, Render, Neon) instead of trusting model memory. |
 | Claude in Chrome | Used in the first session to inspect eneba.com and measure its styles. |
 
+## Libraries chosen during the build
+
+AI tooling is above; this section records the application libraries that needed a real choice.
+
+### Combobox for the search dropdown: Downshift (chosen) vs React Aria
+
+Decided 2026-11-17. The dropdown needs the ARIA combobox pattern (arrow keys, Enter, Escape,
+`aria-activedescendant`, screen-reader announcements), which is easy to get subtly wrong by hand.
+
+| | Downshift `useCombobox` | React Aria `ComboBox` (react-aria-components) |
+|---|---|---|
+| What it is | One hook that returns "prop getters"; renders nothing | Complete unstyled components (ComboBox, Input, Popover, ListBox, sections) |
+| Size in our bundle (measured: esbuild, minified, React excluded) | **13.5 KB gzip** (43 KB min) | **61.6 KB gzip** (204 KB min) for the parts we would use |
+| Our markup and Tailwind classes | Fully ours | Ours, but inside its component structure and data attributes |
+| Server-side results, Enter submits free text | Natural: items are whatever we pass; Enter with nothing highlighted is left to the form | Supported (`allowsCustomValue`, `items`), more configuration |
+| Sections (suggestions / products) | Not built in; one flat list (visual divider only) | Built in (`ListBoxSection`) |
+| Maintenance | Active (v9.5.0) | Active, Adobe, very widely used |
+
+**Chosen: Downshift.** Our whole app was 97 KB gzip; React Aria would add about 60% to it for one
+widget. Downshift's hook model fits how the rest of the frontend is written (plain elements +
+Tailwind), and its behaviour can be adjusted in one pure function (`searchStateReducer`) that is
+unit tested. What we give up: React Aria's built-in sections and its broader component set. We
+would reconsider if several more complex widgets (date pickers, menus) were needed.
+
+Lesson recorded: the first version passed the input text in from React state ("controlled"), and
+fast typing lost letters, because Downshift reports a change only after its own render. The box
+now lets Downshift own the text (`initialInputValue`) and only mirrors it for the request.
+
+Sources: [downshift on npm](https://npmjs.com/downshift),
+[React Aria ComboBox](https://react-aria.adobe.com/ComboBox),
+[a 2026 comparison of select libraries](https://www.pistack.xyz/posts/2026-08-24-react-select-libraries-react-select-downshift-react-aria-comparison/);
+bundle sizes measured by me on 2026-11-17.
+
+### Test runner: Vitest
+
+The Vite project's own test runner: same config and TypeScript handling as the build, nothing
+extra to set up. Used for logic without React (URL ↔ filters, money, dropdown state).
+
 ## Considered and rejected
 
 | Tool | Source | Why not |

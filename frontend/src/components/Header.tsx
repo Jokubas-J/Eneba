@@ -1,6 +1,6 @@
-import type { FormEvent } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router'
-import { CartIcon, MenuIcon, SearchIcon, UserIcon } from './icons.tsx'
+import { Link, useSearchParams } from 'react-router'
+import { SearchBox } from '../search/SearchBox.tsx'
+import { CartIcon, MenuIcon, UserIcon } from './icons.tsx'
 
 // Navigation is part of the page frame, not homepage content, so it is defined
 // here. The links are store filters; the store reads them from the URL.
@@ -16,20 +16,10 @@ const navLinks = [
 // Header as measured on eneba.com (design-reference.md §5): a 57px row with logo,
 // search and account links, then a 50px darker navigation strip.
 export function Header() {
-  const navigate = useNavigate()
   // The store keeps the search text in the URL (?text=...). Showing it in the box
   // keeps the two in step, as on eneba.com.
   const [searchParams] = useSearchParams()
   const currentText = searchParams.get('text') ?? ''
-
-  // Enter in the search box opens the store with the query in the URL, so a search
-  // can be shared or reloaded. (The instant dropdown is added with the search API.)
-  function handleSearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault() // stop the browser's own full-page form submit
-    const text = new FormData(event.currentTarget).get('text')
-    const query = typeof text === 'string' ? text.trim() : ''
-    navigate(query ? `/store?text=${encodeURIComponent(query)}` : '/store')
-  }
 
   return (
     <header>
@@ -40,21 +30,10 @@ export function Header() {
           <span className="ml-1 align-top text-tiny font-extrabold text-yellow uppercase">assignment</span>
         </Link>
 
-        <form onSubmit={handleSearch} role="search" className="relative order-last w-full md:order-none md:w-[550px]">
-          <SearchIcon className="pointer-events-none absolute top-1/2 left-2 size-5 -translate-y-1/2" />
-          <input
-            // defaultValue only sets the initial text of an input; the key makes
-            // React create a new input when the URL's text changes (back button,
-            // removing the "Text" chip), so the box follows the URL.
-            key={currentText}
-            defaultValue={currentText}
-            type="search"
-            name="text"
-            aria-label="Search"
-            placeholder="Search for games, top-ups and more"
-            className="h-[57px] w-full border border-white bg-transparent pr-2 pl-8 text-search font-extrabold placeholder:text-white focus:outline-2 focus:outline-yellow"
-          />
-        </form>
+        {/* initialText only sets the starting text; the key makes React create a
+            fresh search box when the URL's text changes (back button, removing the
+            "Text" chip, opening a product), so the box follows the URL. */}
+        <SearchBox key={currentText} initialText={currentText} />
 
         <div className="ml-auto flex items-center gap-2 text-sm font-semibold sm:gap-4">
           <span className="hidden lg:inline">English EU | EUR</span>
