@@ -35,7 +35,7 @@ const maxFilterValues = 50
 //	text                            search query (typos and partial names are fine)
 //	platform, region, genre, type   may be repeated: ?platform=steam&platform=gog
 //	price_min, price_max            whole cents, inclusive
-//	sort                            relevance | popular | price_asc | price_desc | newest | oldest | name
+//	sort                            relevance | popular | price_asc | price_desc | newest | oldest | name | discount
 //	page                            1-based
 func handleListProducts(products Catalog) http.HandlerFunc {
 	// The outer function runs once, when the router is built, and captures its

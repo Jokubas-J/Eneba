@@ -15,6 +15,7 @@ export const sortOptions = [
   { value: 'price_asc', label: 'Price: Low to high' },
   { value: 'price_desc', label: 'Price: High to low' },
   { value: 'newest', label: 'Date: Newest' },
+  { value: 'discount', label: 'Biggest discount' },
   { value: 'oldest', label: 'Date: Oldest' },
   { value: 'name', label: 'Alphabet: A-Z' },
 ] as const

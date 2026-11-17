@@ -12,6 +12,7 @@ import (
 	"github.com/Jokubas-J/Eneba/backend/internal/catalog"
 	"github.com/Jokubas-J/Eneba/backend/internal/config"
 	"github.com/Jokubas-J/Eneba/backend/internal/database"
+	"github.com/Jokubas-J/Eneba/backend/internal/home"
 	"github.com/Jokubas-J/Eneba/backend/internal/httpapi"
 	"github.com/Jokubas-J/Eneba/backend/internal/orders"
 )
@@ -77,6 +78,7 @@ func run() error {
 			Catalog:             products,
 			Accounts:            accounts,
 			Orders:              orderService,
+			Home:                home.NewService(pool),
 			StripeWebhookSecret: cfg.StripeWebhookSecret,
 			Environment:         cfg.AppEnv,
 			AllowedOrigin:       cfg.AppBaseURL,

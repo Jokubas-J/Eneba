@@ -19,12 +19,13 @@ const (
 	SortNewest    Sort = "newest"
 	SortOldest    Sort = "oldest"
 	SortName      Sort = "name"
+	SortDiscount  Sort = "discount" // biggest discount first (homepage "Biggest discounts" → Show all)
 )
 
 // ParseSort converts a URL value into a Sort.
 func ParseSort(s string) (Sort, bool) {
 	switch Sort(s) {
-	case SortDefault, SortRelevance, SortPopular, SortPriceAsc, SortPriceDesc, SortNewest, SortOldest, SortName:
+	case SortDefault, SortRelevance, SortPopular, SortPriceAsc, SortPriceDesc, SortNewest, SortOldest, SortName, SortDiscount:
 		return Sort(s), true
 	}
 	return "", false

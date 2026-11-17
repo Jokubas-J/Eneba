@@ -33,6 +33,9 @@ var orderBy = map[Sort]string{
 	SortNewest:    "release_date DESC NULLS LAST, id",
 	SortOldest:    "release_date ASC NULLS LAST, id",
 	SortName:      "lower(name), id",
+	// Same ranking as the homepage deals block. Sold-out products have no price and
+	// sort last; NULLIF guards the (impossible) zero reference price.
+	SortDiscount: "(original_price_cents - price_cents)::numeric / NULLIF(original_price_cents, 0) DESC NULLS LAST, popularity DESC, id",
 }
 
 // query collects the pieces of one SQL statement while it is being built.
