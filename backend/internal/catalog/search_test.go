@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -39,6 +40,7 @@ var searchCases = []struct {
 	{"typo", "teraria", "terraria"},
 	{"typo", "civilzation", "civilization"},
 	{"typo", "fallot 4", "fallout 4"},
+	{"typo", "resident evl", "resident evil"}, // short word: lower bar in a multi-word query
 
 	// The visitor is still typing, or types only part of the title.
 	{"partial", "witc", "the witcher 3"},
@@ -56,6 +58,19 @@ var searchCases = []struct {
 	{"abbreviation", "rdr2", "red dead redemption 2"},
 	{"abbreviation", "bg3", "baldur's gate 3"},
 	{"abbreviation", "re4", "resident evil 4"},
+
+	// Synonyms (search_synonyms table): numerals, abbreviations, other spellings.
+	{"synonym", "gta 5", "grand theft auto v"},
+	{"synonym", "gta v", "grand theft auto v"},
+	{"synonym", "grand theft auto 5", "grand theft auto v"},
+	{"synonym", "dark souls 3", "dark souls iii"},
+	{"synonym", "civilization 6", "civilization vi"},
+	{"synonym", "civ 6", "civilization vi"},
+	{"synonym", "ff 16", "final fantasy xvi"},
+	{"synonym", "re 4", "resident evil 4"},
+	{"synonym", "spiderman", "spider-man"},
+	{"synonym", "halflife 2", "half-life 2"},
+	{"synonym", "repo", "r.e.p.o"},
 
 	// Capital letters and punctuation must not matter.
 	{"spelling", "THE WITCHER", "the witcher 3"},
@@ -122,6 +137,122 @@ func TestSearchRanking(t *testing.T) {
 		}
 		if !strings.Contains(strings.ToLower(first), tc.wantFirst) {
 			t.Errorf("%q: first result is %q, want it to contain %q", tc.query, first, tc.wantFirst)
+		}
+	}
+}
+
+// suggestionCases is the table for the query suggestions of the dropdown (top part).
+// wantFirst is the first suggestion expected; "" means none.
+var suggestionCases = []struct {
+	typed     string
+	wantFirst string
+	wantAlso  []string
+}{
+	{"resid", "resident evil", []string{"resident evil 2", "resident evil 4"}},
+	{"gta", "gta", []string{"gta v", "gta 5"}},
+	{"witcher", "witcher", []string{"witcher 3", "the witcher 3"}},
+	{"witchr", "witcher", nil}, // typo: found by similarity
+	{"elden", "elden ring", nil},
+	{"stard", "stardew valley", nil},
+	{"souls", "dark souls", nil}, // a later word of the suggestion
+	{"zzxqv", "", nil},
+}
+
+func TestQuerySuggestions(t *testing.T) {
+	service, ctx := loadRealCatalog(t)
+
+	t.Log("| Typed | Suggestions |")
+	t.Log("|---|---|")
+	for _, tc := range suggestionCases {
+		result, err := service.Suggest(ctx, tc.typed)
+		if err != nil {
+			t.Fatalf("Suggest(%q) error = %v", tc.typed, err)
+		}
+		t.Logf("| %q | %s |", tc.typed, strings.Join(result.Suggestions, ", "))
+
+		if len(result.Suggestions) > catalog.QuerySuggestLimit {
+			t.Errorf("%q: %d suggestions, want at most %d", tc.typed, len(result.Suggestions), catalog.QuerySuggestLimit)
+		}
+		if tc.wantFirst == "" {
+			if len(result.Suggestions) != 0 {
+				t.Errorf("%q: suggestions %v, want none", tc.typed, result.Suggestions)
+			}
+			continue
+		}
+		if len(result.Suggestions) == 0 || result.Suggestions[0] != tc.wantFirst {
+			t.Errorf("%q: suggestions %v, want %q first", tc.typed, result.Suggestions, tc.wantFirst)
+		}
+		for _, want := range tc.wantAlso {
+			if !slices.Contains(result.Suggestions, want) {
+				t.Errorf("%q: suggestions %v, want them to include %q", tc.typed, result.Suggestions, want)
+			}
+		}
+	}
+}
+
+// A suggestion that leads to "No products found" would be worse than none.
+func TestEveryCuratedSuggestionFindsProducts(t *testing.T) {
+	service, ctx := loadRealCatalog(t)
+
+	curated, err := service.CuratedSuggestions(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(curated) < 100 {
+		t.Fatalf("only %d curated suggestions", len(curated))
+	}
+	for _, query := range curated {
+		result, err := service.List(ctx, catalog.ListFilter{Text: query})
+		if err != nil {
+			t.Fatalf("List(%q) error = %v", query, err)
+		}
+		if result.Total == 0 {
+			t.Errorf("curated suggestion %q finds no products", query)
+		}
+	}
+}
+
+func TestVisitorSearchesBecomeSuggestions(t *testing.T) {
+	service, ctx := newService(t, fixture())
+
+	suggestions := func(typed string) []string {
+		t.Helper()
+		result, err := service.Suggest(ctx, typed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result.Suggestions
+	}
+	search := func(text string, page int) {
+		t.Helper()
+		if _, err := service.List(ctx, catalog.ListFilter{Text: text, Page: page}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// The fixture has products named Alpha, bravo, Charlie, Delta.
+	search("charlie", 1)
+	if got := suggestions("charl"); len(got) != 0 {
+		t.Errorf("after one search: suggestions %v, want none yet (needs 2 searches)", got)
+	}
+
+	search("CHARLIE!", 1) // simplified to the same query
+	if got := suggestions("charl"); !slices.Equal(got, []string{"charlie"}) {
+		t.Errorf("after two searches: suggestions %v, want [charlie]", got)
+	}
+
+	// No results, a later page, or typing in the dropdown are not counted.
+	search("zzxqv", 1)
+	search("zzxqv", 1)
+	search("delta", 2)
+	search("delta", 2)
+	for range 3 {
+		suggestions("bravo")
+	}
+	// (Curated suggestions such as "deltarune" may still appear for these.)
+	for _, query := range []string{"zzxqv", "delta", "bravo"} {
+		if got := suggestions(query); slices.Contains(got, query) {
+			t.Errorf("suggestions for %q = %v, want %q not to be among them", query, got, query)
 		}
 	}
 }
@@ -211,9 +342,13 @@ func TestSearchBehaviour(t *testing.T) {
 	})
 
 	t.Run("suggestions are the best few matches", func(t *testing.T) {
-		items, err := service.Suggest(ctx, "witchr")
+		result, err := service.Suggest(ctx, "witchr")
 		if err != nil {
 			t.Fatal(err)
+		}
+		items := result.Items
+		if result.Total < len(items) {
+			t.Errorf("total = %d, fewer than the %d items shown", result.Total, len(items))
 		}
 		if len(items) == 0 || len(items) > catalog.SuggestLimit {
 			t.Fatalf("got %d suggestions, want 1-%d", len(items), catalog.SuggestLimit)
@@ -228,12 +363,12 @@ func TestSearchBehaviour(t *testing.T) {
 
 	t.Run("too short or empty queries give no suggestions", func(t *testing.T) {
 		for _, query := range []string{"", " ", "w", "!?", "a "} {
-			items, err := service.Suggest(ctx, query)
+			result, err := service.Suggest(ctx, query)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if items == nil || len(items) != 0 {
-				t.Errorf("Suggest(%q) = %v, want an empty list", query, items)
+			if result.Items == nil || len(result.Items) != 0 || result.Suggestions == nil || len(result.Suggestions) != 0 {
+				t.Errorf("Suggest(%q) = %+v, want empty lists", query, result)
 			}
 		}
 	})

@@ -46,7 +46,7 @@ func TestParseSort(t *testing.T) {
 			t.Errorf("ParseSort(%q) = %q, %v; want %q, true", input, got, ok, want)
 		}
 		// Every value the parser accepts must end up with an ORDER BY clause.
-		if _, err := orderClause(resolveSort(ListFilter{Sort: got}), nil, nil); err != nil {
+		if _, err := orderClause(resolveSort(ListFilter{Sort: got}), nil, nil, nil); err != nil {
 			t.Errorf("sort %q has no ORDER BY clause: %v", got, err)
 		}
 	}
@@ -108,7 +108,7 @@ func TestBuildQueryFilters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			q := buildQuery(tt.filter)
+			q := buildQuery(tt.filter, nil)
 			sql, args := q.where(), q.args
 
 			if tt.wantEmpty {

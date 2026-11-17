@@ -82,6 +82,14 @@ func newService(t *testing.T, dataset seed.Dataset) (*catalog.Service, context.C
 	if _, err := seed.Load(ctx, pool, dataset, true); err != nil {
 		t.Fatalf("load fixture: %v", err)
 	}
+	// Searches are recorded as suggestions, and the counts change their order. Each
+	// test starts from the migration's state: curated suggestions, never searched.
+	_, err := pool.Exec(ctx, `
+		DELETE FROM search_suggestions WHERE source = 'visitor';
+		UPDATE search_suggestions SET search_count = 0, last_result_count = 0, last_searched_at = NULL`)
+	if err != nil {
+		t.Fatalf("reset search suggestions: %v", err)
+	}
 	return catalog.NewService(catalog.NewRepository(pool)), ctx
 }
 

@@ -59,13 +59,14 @@ func (q *query) where() string {
 	return "WHERE " + strings.Join(q.conditions, " AND ")
 }
 
-// buildQuery turns a filter into conditions and arguments.
-func buildQuery(f ListFilter) *query {
+// buildQuery turns a filter into conditions and arguments. synonyms is the content
+// of the search_synonyms table (only used when the filter has a search text).
+func buildQuery(f ListFilter, synonyms []Synonym) *query {
 	q := &query{}
 	add := func(condition string) { q.conditions = append(q.conditions, condition) }
 
 	if words := NormalizeQuery(f.Text); len(words) > 0 {
-		add(searchCondition(words, q.arg))
+		add(searchCondition(words, synonyms, q.arg))
 	}
 
 	// "= ANY($1)" with a list argument is the parameterised form of IN (...):
@@ -100,14 +101,14 @@ func buildQuery(f ListFilter) *query {
 
 // orderClause returns the ORDER BY for a sort. Best-match order needs a search
 // text; without one there is nothing to rank by, so it falls back to popularity.
-func orderClause(sort Sort, words []string, arg func(any) string) (string, error) {
+func orderClause(sort Sort, words []string, synonyms []Synonym, arg func(any) string) (string, error) {
 	if sort == SortRelevance {
 		if len(words) == 0 {
 			return orderBy[SortPopular], nil
 		}
 		// Equal scores are common (every edition of one game matches "witcher"
 		// equally well), so popularity decides among them, then id.
-		return searchScore(words, arg) + " DESC, popularity DESC, id", nil
+		return searchScore(words, synonyms, arg) + " DESC, popularity DESC, id", nil
 	}
 	order, ok := orderBy[sort]
 	if !ok {
@@ -118,8 +119,8 @@ func orderClause(sort Sort, words []string, arg func(any) string) (string, error
 
 // List returns up to limit products matching the filter, starting at offset, and
 // the total number of matches.
-func (r *Repository) List(ctx context.Context, f ListFilter, limit, offset int) ([]ProductCard, int, error) {
-	q := buildQuery(f)
+func (r *Repository) List(ctx context.Context, f ListFilter, synonyms []Synonym, limit, offset int) ([]ProductCard, int, error) {
+	q := buildQuery(f, synonyms)
 
 	tx, err := r.beginRead(ctx)
 	if err != nil {
@@ -140,7 +141,7 @@ func (r *Repository) List(ctx context.Context, f ListFilter, limit, offset int) 
 	// numbers. (An argument that a statement does not use is an error in PostgreSQL,
 	// which is why they are registered only now.)
 	where := q.where()
-	order, err := orderClause(f.Sort, NormalizeQuery(f.Text), q.arg)
+	order, err := orderClause(f.Sort, NormalizeQuery(f.Text), synonyms, q.arg)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -208,7 +209,7 @@ func (r *Repository) beginRead(ctx context.Context) (pgx.Tx, error) {
 // are, otherwise every unticked platform would show 0 and adding a second platform
 // would look pointless. So each group needs its own WHERE clause, and therefore its
 // own query; the four are sent together in one batch (one network round trip).
-func (r *Repository) Facets(ctx context.Context, f ListFilter) (Facets, error) {
+func (r *Repository) Facets(ctx context.Context, f ListFilter, synonyms []Synonym) (Facets, error) {
 	// For each group: the filter with that group's own selection removed.
 	// "f" is passed by value, so each assignment below changes only a copy.
 	withoutPlatforms, withoutRegions, withoutGenres, withoutTypes := f, f, f, f
@@ -223,7 +224,7 @@ func (r *Repository) Facets(ctx context.Context, f ListFilter) (Facets, error) {
 	// products, so an option with no match is still returned, with count 0.
 	// count(l.id) counts only joined rows: for an option without products the join
 	// yields one row of NULLs, which count(column) ignores (count(*) would say 1).
-	q := buildQuery(withoutPlatforms)
+	q := buildQuery(withoutPlatforms, synonyms)
 	batch.Queue(`
 		SELECT o.slug, o.name, count(l.id)::int
 		FROM platforms o
@@ -231,7 +232,7 @@ func (r *Repository) Facets(ctx context.Context, f ListFilter) (Facets, error) {
 		GROUP BY o.id
 		ORDER BY count(l.id) DESC, o.name`, q.args...)
 
-	q = buildQuery(withoutRegions)
+	q = buildQuery(withoutRegions, synonyms)
 	batch.Queue(`
 		SELECT o.slug, o.name, count(l.id)::int
 		FROM regions o
@@ -241,7 +242,7 @@ func (r *Repository) Facets(ctx context.Context, f ListFilter) (Facets, error) {
 
 	// A product is counted once under each of its genres, so the genre counts can
 	// add up to more than the number of products. That is intended.
-	q = buildQuery(withoutGenres)
+	q = buildQuery(withoutGenres, synonyms)
 	batch.Queue(`
 		SELECT o.slug, o.name, count(l.product_id)::int
 		FROM genres o
@@ -255,7 +256,7 @@ func (r *Repository) Facets(ctx context.Context, f ListFilter) (Facets, error) {
 		ORDER BY count(l.product_id) DESC, o.name`, q.args...)
 
 	// Product types have no lookup table; the options are the types that exist.
-	q = buildQuery(withoutTypes)
+	q = buildQuery(withoutTypes, synonyms)
 	batch.Queue(`
 		SELECT o.product_type, o.product_type, count(l.id)::int
 		FROM (SELECT DISTINCT product_type FROM products) o
@@ -297,4 +298,87 @@ func (r *Repository) Facets(ctx context.Context, f ListFilter) (Facets, error) {
 		*group = options
 	}
 	return facets, nil
+}
+
+// Synonyms returns every pair of the search_synonyms table. The table is small (a
+// few dozen rows) and read once per search request, so a change to it takes effect
+// at once without restarting the server.
+func (r *Repository) Synonyms(ctx context.Context) ([]Synonym, error) {
+	rows, err := r.pool.Query(ctx, `SELECT term, synonym FROM search_synonyms`)
+	if err != nil {
+		return nil, fmt.Errorf("load synonyms: %w", err)
+	}
+	// CollectRows reads every row with the given function and closes the rows; the
+	// function maps the columns onto the struct fields by position.
+	synonyms, err := pgx.CollectRows(rows, pgx.RowToStructByPos[Synonym])
+	if err != nil {
+		return nil, fmt.Errorf("read synonyms: %w", err)
+	}
+	return synonyms, nil
+}
+
+// Suggestions returns up to limit search queries that complete or resemble the typed
+// text, best first: the top section of the search dropdown.
+//
+// Shown are the curated queries and the visitor queries that were searched at least
+// minVisitorSearches times. Ranking: queries that start with the text, then queries
+// with a word that starts with it, then by similarity (for typos), then the most
+// searched, then the shortest.
+func (r *Repository) Suggestions(ctx context.Context, words []string, limit int) ([]string, error) {
+	text := strings.Join(words, " ")
+
+	tx, err := r.beginRead(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	rows, err := tx.Query(ctx, `
+		SELECT query
+		FROM search_suggestions
+		WHERE (source = 'curated' OR search_count >= $4)
+		  AND (query LIKE $2 OR query LIKE $3 OR $1 <% query)
+		ORDER BY query LIKE $2 DESC,
+		         query LIKE $3 DESC,
+		         word_similarity($1, query) DESC,
+		         search_count DESC,
+		         length(query),
+		         query
+		LIMIT $5`, text, text+"%", "% "+text+"%", minVisitorSearches, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query suggestions: %w", err)
+	}
+	// RowTo[string] reads a single-column row into a string.
+	suggestions, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return nil, fmt.Errorf("read suggestions: %w", err)
+	}
+	return suggestions, nil
+}
+
+// RecordSearch counts one search that returned results. A query seen for the first
+// time is added as a visitor suggestion; a known one (curated or visitor) has its
+// counter raised. "ON CONFLICT ... DO UPDATE" does both in one statement, and is
+// safe when two visitors search the same text at the same moment.
+func (r *Repository) RecordSearch(ctx context.Context, words []string, resultCount int) error {
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO search_suggestions (query, source, search_count, last_result_count, last_searched_at)
+		VALUES ($1, 'visitor', 1, $2, now())
+		ON CONFLICT (query) DO UPDATE
+		SET search_count = search_suggestions.search_count + 1,
+		    last_result_count = EXCLUDED.last_result_count,
+		    last_searched_at = EXCLUDED.last_searched_at`, strings.Join(words, " "), resultCount)
+	if err != nil {
+		return fmt.Errorf("record search: %w", err)
+	}
+	return nil
+}
+
+// CuratedSuggestions returns the curated suggestion queries in alphabetical order.
+func (r *Repository) CuratedSuggestions(ctx context.Context) ([]string, error) {
+	rows, err := r.pool.Query(ctx, `SELECT query FROM search_suggestions WHERE source = 'curated' ORDER BY query`)
+	if err != nil {
+		return nil, fmt.Errorf("query curated suggestions: %w", err)
+	}
+	return pgx.CollectRows(rows, pgx.RowTo[string])
 }

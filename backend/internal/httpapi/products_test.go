@@ -24,10 +24,10 @@ type fakeLister struct {
 	err       error
 }
 
-func (f *fakeLister) Suggest(ctx context.Context, text string) ([]catalog.ProductCard, error) {
+func (f *fakeLister) Suggest(ctx context.Context, text string) (catalog.SuggestResult, error) {
 	f.called = true
 	f.gotText = text
-	return f.result.Items, f.err
+	return catalog.SuggestResult{Suggestions: []string{"alpha 2"}, Items: f.result.Items, Total: 9}, f.err
 }
 
 func (f *fakeLister) List(ctx context.Context, filter catalog.ListFilter) (catalog.ListResult, error) {
@@ -226,15 +226,20 @@ func TestSuggest(t *testing.T) {
 			t.Errorf("query passed to the service = %q, want %q", lister.gotText, "witchr 3")
 		}
 		var body struct {
-			Items []struct {
+			Suggestions []string `json:"suggestions"`
+			Items       []struct {
 				Slug string `json:"slug"`
 			} `json:"items"`
+			Total int `json:"total"`
 		}
 		if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 			t.Fatalf("response is not JSON: %v", err)
 		}
 		if len(body.Items) != 1 || body.Items[0].Slug != "alpha" {
 			t.Errorf("items = %+v, want the one hit", body.Items)
+		}
+		if len(body.Suggestions) != 1 || body.Suggestions[0] != "alpha 2" || body.Total != 9 {
+			t.Errorf("suggestions = %v, total = %d; want [alpha 2], 9", body.Suggestions, body.Total)
 		}
 	})
 

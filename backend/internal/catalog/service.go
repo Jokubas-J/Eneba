@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"strings"
 )
 
 // ErrInvalidFilter is returned for a filter that cannot be right whatever is in the
@@ -15,8 +17,15 @@ const (
 	// such as ?page=999999999 from making the database skip billions of rows.
 	maxPage = 10_000
 
-	// SuggestLimit is how many product hits the header search dropdown shows.
-	SuggestLimit = 6
+	// SuggestLimit is how many product hits the header search dropdown shows, and
+	// QuerySuggestLimit how many query suggestions are listed above them.
+	SuggestLimit      = 6
+	QuerySuggestLimit = 5
+
+	// A query typed by visitors becomes a suggestion for everyone only after it was
+	// searched this many times (and returned results each time it was recorded).
+	// One visitor typing nonsense once cannot put it in front of others.
+	minVisitorSearches = 2
 
 	// A one-letter query matches a large part of the catalog and helps nobody, so
 	// suggestions start at two characters.
@@ -42,13 +51,19 @@ func (s *Service) List(ctx context.Context, f ListFilter) (ListResult, error) {
 		return ListResult{}, err
 	}
 
-	items, total, err := s.repo.List(ctx, f, PageSize, (f.Page-1)*PageSize)
+	words := NormalizeQuery(f.Text)
+	synonyms, err := s.synonymsFor(ctx, words)
+	if err != nil {
+		return ListResult{}, err
+	}
+
+	items, total, err := s.repo.List(ctx, f, synonyms, PageSize, (f.Page-1)*PageSize)
 	if err != nil {
 		return ListResult{}, err
 	}
 	addDiscounts(items)
 
-	facets, err := s.repo.Facets(ctx, f)
+	facets, err := s.repo.Facets(ctx, f, synonyms)
 	if err != nil {
 		return ListResult{}, err
 	}
@@ -58,24 +73,62 @@ func (s *Service) List(ctx context.Context, f ListFilter) (ListResult, error) {
 		}
 	}
 
+	// A search that found something feeds the suggestions. Only page 1 counts, so
+	// paging through one search is one search. A failure here is logged and not
+	// returned: the visitor asked for products, and got them.
+	if len(words) > 0 && total > 0 && f.Page == 1 {
+		if err := s.repo.RecordSearch(ctx, words, total); err != nil {
+			log.Printf("record search %q: %v", f.Text, err)
+		}
+	}
+
 	return ListResult{Items: items, Total: total, Page: f.Page, PageSize: PageSize, Facets: facets}, nil
 }
 
-// Suggest returns the few best product matches for a partly typed query: the data
-// of the search dropdown in the header.
-func (s *Service) Suggest(ctx context.Context, text string) ([]ProductCard, error) {
+// synonymsFor loads the synonym table, but only when there is a search text: plain
+// browsing does not need it and saves the database round trip.
+func (s *Service) synonymsFor(ctx context.Context, words []string) ([]Synonym, error) {
+	if len(words) == 0 {
+		return nil, nil
+	}
+	return s.repo.Synonyms(ctx)
+}
+
+// SuggestResult is the content of the search dropdown.
+type SuggestResult struct {
+	Suggestions []string      `json:"suggestions"` // queries, shown on top
+	Items       []ProductCard `json:"items"`       // best product matches
+	Total       int           `json:"total"`       // all matches, for "Show all N results"
+}
+
+// Suggest returns the content of the search dropdown for a partly typed query: query
+// suggestions and the best few products.
+//
+// Unlike List it records nothing: it runs on every pause in typing, so "wit",
+// "witc" and "witch" would all be counted as searches.
+func (s *Service) Suggest(ctx context.Context, text string) (SuggestResult, error) {
+	empty := SuggestResult{Suggestions: []string{}, Items: []ProductCard{}}
+
 	// Decided on the simplified query, so "  !! " or "a" never reaches the database.
 	words := NormalizeQuery(text)
-	if len(words) == 0 || (len(words) == 1 && len(words[0]) < minSuggestLength) {
-		return []ProductCard{}, nil
+	if len(words) == 0 || len(strings.Join(words, " ")) < minSuggestLength {
+		return empty, nil
 	}
 
-	items, _, err := s.repo.List(ctx, ListFilter{Text: text, Sort: SortRelevance}, SuggestLimit, 0)
+	suggestions, err := s.repo.Suggestions(ctx, words, QuerySuggestLimit)
 	if err != nil {
-		return nil, err
+		return empty, err
+	}
+	synonyms, err := s.repo.Synonyms(ctx)
+	if err != nil {
+		return empty, err
+	}
+	items, total, err := s.repo.List(ctx, ListFilter{Text: text, Sort: SortRelevance}, synonyms, SuggestLimit, 0)
+	if err != nil {
+		return empty, err
 	}
 	addDiscounts(items)
-	return items, nil
+	return SuggestResult{Suggestions: suggestions, Items: items, Total: total}, nil
 }
 
 // resolveSort picks the order when the visitor did not choose one: a search is
@@ -127,4 +180,10 @@ func validate(f ListFilter) error {
 // kind of error with errors.Is and still show the reason to the client.
 func fmtInvalid(reason string) error {
 	return fmt.Errorf("%w: %s", ErrInvalidFilter, reason)
+}
+
+// CuratedSuggestions lists the curated search queries (used by the test that checks
+// each of them finds products).
+func (s *Service) CuratedSuggestions(ctx context.Context) ([]string, error) {
+	return s.repo.CuratedSuggestions(ctx)
 }

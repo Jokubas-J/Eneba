@@ -19,7 +19,7 @@ import (
 // a real service with a database behind it.
 type Catalog interface {
 	List(ctx context.Context, filter catalog.ListFilter) (catalog.ListResult, error)
-	Suggest(ctx context.Context, text string) ([]catalog.ProductCard, error)
+	Suggest(ctx context.Context, text string) (catalog.SuggestResult, error)
 }
 
 // maxFilterValues caps how many values one filter group may carry. The store has a
@@ -118,21 +118,16 @@ func optionalInt(query url.Values, name string) (*int, error) {
 	return &value, nil
 }
 
-// suggestResponse is the body of GET /api/search/suggest. The list is wrapped in an
-// object so that fields can be added later without breaking the frontend.
-type suggestResponse struct {
-	Items []catalog.ProductCard `json:"items"`
-}
-
-// handleSuggest serves GET /api/search/suggest?q=..., the product hits of the
-// search dropdown in the header. It is called while the visitor types.
+// handleSuggest serves GET /api/search/suggest?q=..., the content of the search
+// dropdown in the header: {suggestions, items, total}. It is called while the
+// visitor types.
 func handleSuggest(products Catalog) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		items, err := products.Suggest(r.Context(), r.URL.Query().Get("q"))
+		result, err := products.Suggest(r.Context(), r.URL.Query().Get("q"))
 		if err != nil {
 			writeInternalError(w, r, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, suggestResponse{Items: items})
+		writeJSON(w, http.StatusOK, result)
 	}
 }
