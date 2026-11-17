@@ -63,6 +63,23 @@ func TestSchema(t *testing.T) {
 		}
 	})
 
+	t.Run("rows that belong to a product are deleted with it", func(t *testing.T) {
+		// pg_constraint.confdeltype is the foreign key's ON DELETE rule: 'c' = CASCADE.
+		// Read from the database itself, so it checks the migrations as applied.
+		for _, table := range []string{"product_screenshots", "product_genres"} {
+			var rule string
+			err := pool.QueryRow(ctx, `
+				SELECT confdeltype::text FROM pg_constraint
+				WHERE contype = 'f' AND conrelid = $1::regclass AND confrelid = 'products'::regclass`, table).Scan(&rule)
+			if err != nil {
+				t.Fatalf("foreign key of %s: %v", table, err)
+			}
+			if rule != "c" {
+				t.Errorf("%s -> products: ON DELETE rule %q, want CASCADE ('c')", table, rule)
+			}
+		}
+	})
+
 	t.Run("a key cannot be sold without belonging to an order item", func(t *testing.T) {
 		// Everything happens in a transaction that is rolled back, so the test
 		// leaves no rows behind whatever its outcome.
