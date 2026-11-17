@@ -47,3 +47,28 @@ commit history and in `ai-logs/`.
 - Neon connection strings in `backend/.env`; first run of migrations and seed against Neon.
 - Render and Vercel deployment, the `Set-Cookie` round-trip check through the rewrite, the uptime
   pinger, re-checking the free-tier limits.
+
+## 2026-11-17 — PLAN day 3 (store + search) and start of day 4
+
+**Built**
+- Store: `GET /api/products` with filters, sorting, pagination and facet counts (each group
+  counted without its own selection); store page with all state in the URL.
+- Search: typo-tolerant `pg_trgm` matching on a simplified name, synonyms table (numerals,
+  abbreviations), accents via `unaccent`, query suggestions (curated + visitor), header dropdown
+  with Downshift, debounced and cancellable requests. Test tables in `docs/search.md`.
+- `docs/gap-analysis.md`: side-by-side comparison with eneba.com; Categories menu proposal.
+- Product page: `GET /api/products/{slug}` with the offer comparison and other versions.
+
+**Decisions (author)**
+- Cents in the API, euros in the store page's URL.
+- Search on the full variant name (there is no game-level title), with `word_similarity`.
+- Facets: each group counted with all other filters except its own.
+- Stay on Postgres search; Meilisearch/Typesense assessed and not adopted.
+- Categories menu: table-driven (option B), built on day 6 with the homepage.
+- Visitor suggestions public only after 2 different days (not sessions: visitors are anonymous).
+
+**Mistakes caught**
+- Controlled Downshift input lost letters during fast typing → Downshift now owns the text.
+- `leading-N` with a 5px spacing step meant N×5px → exact pixel line heights.
+- I edited an already-applied migration (00005) by accident; reverted, and the change went into
+  a new migration (00007) instead. Applied migrations are never edited.
