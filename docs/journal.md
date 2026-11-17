@@ -143,3 +143,50 @@ commit history and in `ai-logs/`.
   cascade reaches orders → order items → license keys and deleted every key. It now runs first.
 - I used a stripe-go field name (`PaymentMethodTypes`) that this version does not have; the
   compiler caught it. The right field is `AllowedPaymentMethodTypes`.
+
+## 2026-11-17 (continued) — Bug found by manual testing: Stripe idempotency keys collided
+
+**Found by** the author, testing the live site with a real cart. Checkout failed; the Render log
+had Stripe's `idempotency_error`: "Keys for idempotent requests can only be used with the same
+parameters they were first used with. Try using a key other than 'order-2-session'" (and the
+same for `order-3-session`).
+
+**Root cause.** The idempotency key for creating a Checkout Session was `order-<id>-session`.
+The order id is a per-database sequence, and the development and production databases share
+one Stripe test account. Stripe keeps idempotency keys per account (for 24 hours), and my local
+tests earlier that day had already used `order-2-session` and `order-3-session` for different
+carts. When production reached orders 2 and 3, Stripe saw a known key with different parameters
+and refused. My automated tests could not catch it: they use one database and a fake provider,
+and my own live test happened to be production order 1, a number the local tests had used for
+the simulated provider, which sends nothing to Stripe.
+
+**Fix** (commit `44fd031`)
+- Migration 00010: `orders.payment_reference`, a random UUID set by PostgreSQL
+  (`gen_random_uuid()`). The key is now `checkout-session-<uuid>`: unique across databases, and
+  still the same for a retry of the same order, so a network retry still cannot create a second
+  payment page.
+- Sessions carry `metadata.environment` (APP_ENV) and `payment_reference`. The webhook now
+  acknowledges and ignores events of sessions from the other environment explicitly, instead
+  of relying on "session id not found".
+- Test first: `TestStripeSessionsFromTwoDatabasesDoNotCollide` runs two providers
+  (development, production) against a fake Stripe server that enforces idempotency like the real
+  one; before the fix it failed with exactly the error from the Render log, after the fix it
+  passes. Also tested: a retry of the same order returns the same session; the metadata; every
+  order gets a distinct UUID; the webhook ignores the other environment.
+
+**Were keys left reserved by orders 2 and 3?** No. When the provider fails, `Checkout` expires
+the order at once and returns its keys (`TestProviderFailureReleasesKeys`); the clean-up job is
+not needed for them because they are no longer pending. Checked without database access: the
+public stock of every Elden Ring and Cyberpunk offer in production was identical to the dev
+branch, where nobody had bought them.
+
+**Verified live after the fix.** First created development order 4 through Stripe locally, so
+that production's next order would have the same id. Then on the live site: Elden Ring ×2
+(Keyhaven) + Cyberpunk 2077 GLOBAL (Pixel Harbor) + Cyberpunk 2077 EUROPE (Baltic Keys), paid
+with 4242 4242 4242 4242. Stripe held two open sessions for "order 4" (environment development
+and production, different UUIDs); the production one totalled 12436 cents, priced from the
+database. Order page showed 4 keys (2 + 1 + 1) and €124.36; the cart emptied; the
+`checkout.session.completed` event has `pending_webhooks: 0`; stock fell 4→2, 10→9, 8→7.
+
+**Lesson.** Anything sent to a shared external account must be unique across every environment
+that uses it, not just within one database.

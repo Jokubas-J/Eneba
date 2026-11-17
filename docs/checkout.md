@@ -80,4 +80,5 @@ effect; a repeated event finds its id already there and is acknowledged without 
 | Someone else's order | 404, as if it did not exist (no hint that the id is valid) | `TestOrdersAreOnlyVisibleToTheirOwner` |
 | Forged webhook | 400 before any database access | `TestStripeWebhookSignature` |
 | Slow payment method (bank redirect, voucher) confirms after the reservation expired | Checkout sessions accept cards only (`AllowedPaymentMethodTypes: card`); cards and card wallets are confirmed at once | – (checked by hand on the Stripe page) |
+| Development and production share one Stripe test account (order ids repeat across databases) | Idempotency key = `checkout-session-<payment_reference>`, a random UUID per order (migration 00010), not the order id; sessions carry `metadata.environment`, and the webhook acknowledges and ignores events of the other environment | `TestStripeSessionsFromTwoDatabasesDoNotCollide`, `TestStripeSessionRetryForTheSameOrderIsIdempotent`, `TestStripeWebhookSignature/an_event_from_the_other_environment…` |
 | Stripe unreachable at checkout | Order expired at once, keys released, 502 to the browser | `TestProviderFailureReleasesKeys` |
