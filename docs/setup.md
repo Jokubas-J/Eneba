@@ -56,9 +56,9 @@ server where the Go server runs; it is not a secret and is not compiled into the
 | `APP_ENV` | no | `development` | `production` | fixed values. Controls the `Secure` cookie flag. |
 | `PORT` | no | `8080` | *(set by Render automatically)* | — |
 | `APP_BASE_URL` | no | `http://localhost:5173` | `https://<project>.vercel.app` | the public address of the frontend; used for Stripe return URLs and the `Origin` check |
-| `PAYMENT_PROVIDER` | no | `stripe` or `simulated` | `stripe` (fallback: `simulated`) | our own switch |
-| `STRIPE_SECRET_KEY` | **yes** | `sk_test_…` | same `sk_test_…` | Stripe → Developers → API keys |
-| `STRIPE_WEBHOOK_SECRET` | **yes** | `whsec_…` printed by `stripe listen` | `whsec_…` of the dashboard webhook endpoint (different value!) | see section 4 |
+| `PAYMENT_PROVIDER` | no (default `simulated`) | `stripe` or `simulated` | `stripe` (fallback: `simulated`) | our own switch |
+| `STRIPE_SECRET_KEY` | **yes** | `sk_test_…` (only with `stripe`) | same `sk_test_…` | Stripe → Developers → API keys. The server refuses to start with anything but a `sk_test_` key. |
+| `STRIPE_WEBHOOK_SECRET` | **yes** | `whsec_…` printed by `stripe listen` (optional locally: without it webhooks get 503 and the order page confirms the payment instead) | `whsec_…` of the dashboard webhook endpoint (different value!); required in production with `stripe` | see section 4 |
 
 Other places configuration lives:
 
