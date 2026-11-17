@@ -38,6 +38,10 @@ function AccountLinks() {
         <span aria-hidden="true" className="hidden md:inline">
           |
         </span>
+        <Link to="/orders" className="hover:text-yellow">
+          My orders
+        </Link>
+        <span aria-hidden="true">|</span>
         <button type="button" onClick={() => logout.mutate()} className="hover:text-yellow">
           Log out
         </button>

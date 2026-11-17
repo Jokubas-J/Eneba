@@ -237,3 +237,56 @@ export type ValidatedCart = {
 export function validateCart(lines: CartLine[]): Promise<ValidatedCart> {
   return postJSON<ValidatedCart>('/api/cart/validate', { items: lines })
 }
+
+// --- Orders (mirrors backend/internal/orders) ---
+
+export type OrderStatus = 'pending' | 'paid' | 'expired'
+
+export type OrderItem = {
+  id: number
+  offerId: number
+  productSlug: string
+  productName: string
+  coverUrl: string
+  sellerName: string
+  unitPriceCents: number
+  quantity: number
+  keys: string[] // only filled for paid orders
+}
+
+export type Order = {
+  id: number
+  status: OrderStatus
+  totalCents: number
+  currency: string
+  paymentProvider: 'stripe' | 'simulated'
+  createdAt: string
+  expiresAt: string
+  paidAt: string | null
+  items: OrderItem[]
+}
+
+export type CheckoutResult = {
+  orderId: number
+  redirectUrl: string // Stripe's payment page, or our simulated one
+}
+
+export function checkout(lines: CartLine[]): Promise<CheckoutResult> {
+  return postJSON<CheckoutResult>('/api/checkout', { items: lines })
+}
+
+export function fetchOrder(id: string): Promise<Order> {
+  return getJSON<Order>(`/api/orders/${encodeURIComponent(id)}`)
+}
+
+export function confirmOrder(id: string): Promise<Order> {
+  return postJSON<Order>(`/api/orders/${encodeURIComponent(id)}/confirm`)
+}
+
+export function paySimulated(id: string): Promise<Order> {
+  return postJSON<Order>(`/api/payments/simulated/${encodeURIComponent(id)}`)
+}
+
+export async function fetchOrders(): Promise<Order[]> {
+  return (await getJSON<{ items: Order[] }>('/api/orders')).items
+}

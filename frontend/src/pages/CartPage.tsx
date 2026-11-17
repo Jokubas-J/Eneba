@@ -1,6 +1,6 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
-import { type CartItem, validateCart } from '../api.ts'
+import { ApiError, type CartItem, checkout, validateCart } from '../api.ts'
 import { useCurrentUser } from '../auth/useAuth.ts'
 import { useCart } from '../cart/useCart.ts'
 import { maxLineQuantity } from '../cart/cartState.ts'
@@ -18,6 +18,24 @@ import { formatPrice } from '../money.ts'
 export function CartPage() {
   const { lines, dispatch } = useCart()
   const me = useCurrentUser()
+
+  // Checkout sends only offer ids and quantities; the server prices the order from
+  // the database, reserves the keys and answers with where to pay.
+  const startCheckout = useMutation({
+    mutationFn: () => checkout(lines),
+    onSuccess: (result) => {
+      // A full page load: Stripe's page is another site (and the simulated page
+      // starts fresh). The cart is kept until the order is paid, so going back
+      // from the payment page still shows it.
+      window.location.assign(result.redirectUrl)
+    },
+  })
+  const checkoutError =
+    startCheckout.error instanceof ApiError && startCheckout.error.status < 500
+      ? startCheckout.error.message
+      : startCheckout.error
+        ? 'The payment could not be started. Please try again.'
+        : null
 
   const cart = useQuery({
     // The lines are part of the key: any change (quantity, removal) asks again.
@@ -88,8 +106,13 @@ export function CartPage() {
             // wrong one for a moment.
             <div className="mt-4 h-7" aria-hidden="true" />
           ) : me.data ? (
-            <Button className="mt-4 w-full" disabled title="Payment is added in the next build step.">
-              Proceed to checkout
+            <Button
+              className="mt-4 w-full"
+              disabled={startCheckout.isPending || !data || data.itemCount === 0 || hasProblems}
+              title={hasProblems ? 'Remove or fix the lines marked in pink first.' : undefined}
+              onClick={() => startCheckout.mutate()}
+            >
+              {startCheckout.isPending ? 'Reserving your keys…' : 'Proceed to checkout'}
             </Button>
           ) : (
             <ButtonLink to="/login?next=%2Fcart" className="mt-4 w-full">
@@ -104,6 +127,11 @@ export function CartPage() {
             <dt className="font-extrabold">Total:</dt>
             <dd className="text-buybox font-extrabold">{data ? formatPrice(data.totalCents) : '…'}</dd>
           </dl>
+          {checkoutError && (
+            <p role="alert" className="mt-3 border border-pink-region p-2 text-sm text-pink-region">
+              {checkoutError}
+            </p>
+          )}
           {hasProblems && (
             <p className="mt-3 text-xs text-pink-region">
               Lines marked in pink cannot be bought as they are and are not in the total.
