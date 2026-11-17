@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useCombobox } from 'downshift'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, type KeyboardEvent, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { fetchSuggestions, type ProductCard } from '../api.ts'
 import { SearchIcon } from '../components/icons.tsx'
@@ -77,6 +77,18 @@ export function SearchBox({ initialText }: { initialText: string }) {
 
   // Enter with no entry highlighted submits the form: a full search in the store.
   // (With an entry highlighted, Downshift handles Enter and the form is not submitted.)
+  //
+  // Downshift (9.5) cancels the form submit on Enter whenever the list is OPEN, even
+  // with nothing highlighted, so the first Enter only closed the list. Found by the
+  // end-to-end test on day 6. preventDownshiftDefault is Downshift's documented way
+  // to skip its own handling of one event; the browser then submits the form.
+  function handleInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'Enter' && highlightedIndex === -1) {
+      // A flag Downshift reads on the browser's event object (not React's wrapper).
+      Object.assign(event.nativeEvent, { preventDownshiftDefault: true })
+    }
+  }
+
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
     closeMenu()
@@ -102,6 +114,7 @@ export function SearchBox({ initialText }: { initialText: string }) {
             type: 'search',
             name: 'text',
             placeholder: 'Search for games, top-ups and more',
+            onKeyDown: handleInputKeyDown,
           })}
           className={`h-[57px] w-full border border-white pr-2 pl-8 text-search font-extrabold placeholder:text-white focus:outline-2 focus:outline-yellow ${
             showMenu ? 'bg-purple-dark' : 'bg-transparent'

@@ -59,8 +59,10 @@ function OrdersList() {
                   >
                     <div className="min-w-0 flex-1">
                       <p className="font-extrabold">
-                        Order #{order.id}
-                        <span className="ml-2 text-xs font-normal text-text-muted">
+                        {/* A real space, not only margin: otherwise the link's
+                            accessible name runs together ("Order #117/11/2026"). */}
+                        Order #{order.id}{' '}
+                        <span className="ml-1 text-xs font-normal text-text-muted">
                           {new Date(order.createdAt).toLocaleDateString('en-IE')}
                         </span>
                       </p>
