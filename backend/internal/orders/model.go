@@ -56,6 +56,11 @@ type Order struct {
 	ExpiresAt  time.Time   `json:"expiresAt"`
 	PaidAt     *time.Time  `json:"paidAt"`
 	Items      []OrderItem `json:"items"`
+
+	// PaymentReference is a random UUID set by the database when the order is
+	// created. Unlike ID it is unique across databases, so it is what the payment
+	// provider's idempotency key is built from. Not sent to the browser.
+	PaymentReference string `json:"-"`
 }
 
 // OrderItem is one line of an order. Name and price are snapshots from the moment of

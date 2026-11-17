@@ -31,6 +31,7 @@ type orderHandlers struct {
 	orders        Orders
 	accounts      authHandlers
 	webhookSecret string // STRIPE_WEBHOOK_SECRET; empty = webhooks refused
+	environment   string // APP_ENV; events of other environments are ignored
 }
 
 // requireUser returns the signed-in user, or writes 401 and returns false.
@@ -219,6 +220,17 @@ func (h orderHandlers) stripeWebhook(w http.ResponseWriter, r *http.Request) {
 	var session stripe.CheckoutSession
 	if err := json.Unmarshal(event.Data.Raw, &session); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "Unexpected event data.")
+		return
+	}
+
+	// Development and production share one Stripe test account, and Stripe sends
+	// every event of the account to every endpoint. A session created by the other
+	// environment says so in its metadata: acknowledge it (so Stripe stops resending)
+	// and do nothing. Older sessions without the field still fall through to the
+	// lookup by session id, which finds nothing for a foreign session.
+	if origin := session.Metadata["environment"]; origin != "" && origin != h.environment {
+		log.Printf("stripe webhook: ignored %s %s from the %s environment", event.Type, event.ID, origin)
+		w.WriteHeader(http.StatusOK)
 		return
 	}
 

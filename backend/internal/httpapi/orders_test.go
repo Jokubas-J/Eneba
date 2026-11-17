@@ -46,7 +46,8 @@ func webhookRequest(t *testing.T, fake *fakeOrders, secret, body, signatureHeade
 	req := httptest.NewRequest(http.MethodPost, "/api/webhooks/stripe", strings.NewReader(body))
 	req.Header.Set("Stripe-Signature", signatureHeader)
 	rec := httptest.NewRecorder()
-	NewRouter(Dependencies{Orders: fake, Accounts: &fakeAccounts{}, StripeWebhookSecret: secret, AllowedOrigin: testOrigin}).ServeHTTP(rec, req)
+	NewRouter(Dependencies{Orders: fake, Accounts: &fakeAccounts{}, StripeWebhookSecret: secret, AllowedOrigin: testOrigin,
+		Environment: "production"}).ServeHTTP(rec, req)
 	return rec
 }
 
@@ -99,6 +100,28 @@ func TestStripeWebhookSignature(t *testing.T) {
 		tampered := strings.Replace(completedEvent, "cs_test_abc", "cs_test_other", 1)
 		if rec := webhookRequest(t, fake, testWebhookSecret, tampered, header); rec.Code != 400 || len(fake.events) != 0 {
 			t.Errorf("status = %d, events = %d", rec.Code, len(fake.events))
+		}
+	})
+
+	t.Run("an event from the other environment is acknowledged and ignored", func(t *testing.T) {
+		fake := &fakeOrders{}
+		body := `{"id":"evt_dev","object":"event","type":"checkout.session.completed",
+			"data":{"object":{"id":"cs_test_dev","object":"checkout.session","payment_status":"paid",
+			"metadata":{"environment":"development","order_id":"2"}}}}`
+		rec := webhookRequest(t, fake, testWebhookSecret, body, sign(body, testWebhookSecret, time.Now()))
+		if rec.Code != http.StatusOK || len(fake.events) != 0 {
+			t.Errorf("status = %d, events = %d; want 200 and none passed on", rec.Code, len(fake.events))
+		}
+	})
+
+	t.Run("an event from the same environment is passed on", func(t *testing.T) {
+		fake := &fakeOrders{}
+		body := `{"id":"evt_prod","object":"event","type":"checkout.session.completed",
+			"data":{"object":{"id":"cs_test_prod","object":"checkout.session","payment_status":"paid",
+			"metadata":{"environment":"production","order_id":"2"}}}}`
+		rec := webhookRequest(t, fake, testWebhookSecret, body, sign(body, testWebhookSecret, time.Now()))
+		if rec.Code != http.StatusOK || len(fake.events) != 1 {
+			t.Errorf("status = %d, events = %d; want 200 and one passed on", rec.Code, len(fake.events))
 		}
 	})
 

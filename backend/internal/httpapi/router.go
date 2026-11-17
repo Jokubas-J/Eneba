@@ -12,6 +12,9 @@ type Dependencies struct {
 	Orders   Orders
 	// StripeWebhookSecret verifies Stripe webhooks; empty = webhooks are refused.
 	StripeWebhookSecret string
+	// Environment is APP_ENV. The webhook ignores Stripe events of sessions created
+	// by another environment (they share one Stripe account).
+	Environment string
 	// AllowedOrigin is the frontend's address (APP_BASE_URL); state-changing
 	// requests from any other site are refused.
 	AllowedOrigin string
@@ -41,7 +44,7 @@ func NewRouter(deps Dependencies) http.Handler {
 	mux.HandleFunc("POST /api/auth/logout", accounts.logout)
 	mux.HandleFunc("GET /api/auth/me", accounts.me)
 
-	orders := orderHandlers{orders: deps.Orders, accounts: accounts, webhookSecret: deps.StripeWebhookSecret}
+	orders := orderHandlers{orders: deps.Orders, accounts: accounts, webhookSecret: deps.StripeWebhookSecret, environment: deps.Environment}
 	mux.HandleFunc("POST /api/checkout", orders.checkout)
 	mux.HandleFunc("GET /api/orders", orders.list)
 	mux.HandleFunc("GET /api/orders/{id}", orders.get)

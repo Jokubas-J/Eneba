@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -53,17 +54,30 @@ func (p SimulatedProvider) IsPaid(ctx context.Context, sessionID string) (bool, 
 // StripeProvider uses Stripe Checkout: Stripe hosts the payment page, so no card data
 // ever reaches our server.
 type StripeProvider struct {
-	client  *stripe.Client
-	baseURL string
+	client      *stripe.Client
+	baseURL     string
+	environment string // APP_ENV
 }
 
-func NewStripeProvider(secretKey, baseURL string) *StripeProvider {
-	return &StripeProvider{client: stripe.NewClient(secretKey), baseURL: baseURL}
+func NewStripeProvider(secretKey, baseURL, environment string) *StripeProvider {
+	return newStripeProvider(stripe.NewClient(secretKey), baseURL, environment)
+}
+
+// newStripeProvider takes the client ready-made, so tests can point it at a fake
+// Stripe server.
+func newStripeProvider(client *stripe.Client, baseURL, environment string) *StripeProvider {
+	return &StripeProvider{client: client, baseURL: baseURL, environment: environment}
 }
 
 func (p *StripeProvider) Name() string { return "stripe" }
 
 func (p *StripeProvider) CreateSession(ctx context.Context, order Order) (string, string, error) {
+	if order.PaymentReference == "" {
+		// Without it the idempotency key would not be unique; refuse rather than risk
+		// another collision.
+		return "", "", errors.New("order has no payment reference")
+	}
+	orderID := strconv.FormatInt(order.ID, 10)
 	params := &stripe.CheckoutSessionCreateParams{
 		Mode: stripe.String(string(stripe.CheckoutSessionModePayment)),
 		// Card only. Without this Stripe also offers methods such as bank redirects
@@ -77,8 +91,15 @@ func (p *StripeProvider) CreateSession(ctx context.Context, order Order) (string
 		// The session expires with the reservation: Stripe will not take a payment
 		// after the keys could have been released.
 		ExpiresAt:         stripe.Int64(order.ExpiresAt.Unix()),
-		ClientReferenceID: stripe.String(strconv.FormatInt(order.ID, 10)),
-		Metadata:          map[string]string{"order_id": strconv.FormatInt(order.ID, 10)},
+		ClientReferenceID: stripe.String(orderID),
+		// environment lets the webhook tell development sessions from production
+		// ones: both databases share one Stripe test account, and Stripe sends every
+		// event to every endpoint of the account.
+		Metadata: map[string]string{
+			"environment":       p.environment,
+			"order_id":          orderID,
+			"payment_reference": order.PaymentReference,
+		},
 	}
 	// The amounts come from the order, which was priced from the database.
 	for _, item := range order.Items {
@@ -95,8 +116,11 @@ func (p *StripeProvider) CreateSession(ctx context.Context, order Order) (string
 		})
 	}
 	// The idempotency key makes a retried request (network hiccup) return the same
-	// session instead of creating a second one for the same order.
-	params.SetIdempotencyKey(fmt.Sprintf("order-%d-session", order.ID))
+	// session instead of creating a second one for the same order. Stripe keeps keys
+	// per account, and the account is shared by development and production, so the
+	// key must be unique across databases: the order's random payment reference, not
+	// its id (two databases both have an order 2).
+	params.SetIdempotencyKey("checkout-session-" + order.PaymentReference)
 
 	session, err := p.client.V1CheckoutSessions.Create(ctx, params)
 	if err != nil {

@@ -25,6 +25,8 @@ type fakeProvider struct {
 	fail bool
 	n    int
 	paid map[string]bool
+	// payment references of the orders sessions were created for
+	references []string
 }
 
 func (p *fakeProvider) Name() string { return "stripe" }
@@ -32,6 +34,7 @@ func (p *fakeProvider) Name() string { return "stripe" }
 func (p *fakeProvider) CreateSession(ctx context.Context, order orders.Order) (string, string, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	p.references = append(p.references, order.PaymentReference)
 	if p.fail {
 		return "", "", errors.New("stripe is down")
 	}
@@ -457,5 +460,30 @@ func TestCheckoutRejectsBadCarts(t *testing.T) {
 	}
 	if got := f.keyCounts(t, f.many); got["available"] != 5 {
 		t.Errorf("keys = %v, want untouched", got)
+	}
+}
+
+// Every order gets its own payment reference from the database (the idempotency key
+// for Stripe is built from it), and it is a UUID, not the order id.
+func TestEveryOrderGetsAUniquePaymentReference(t *testing.T) {
+	provider := &fakeProvider{}
+	f := setup(t, provider, 1)
+	for range 3 {
+		if _, err := f.service.Checkout(f.ctx, f.users[0], []catalog.CartLine{{OfferID: f.many, Quantity: 1}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seen := map[string]bool{}
+	for _, ref := range provider.references {
+		if len(ref) != 36 || strings.Count(ref, "-") != 4 {
+			t.Errorf("reference %q is not a UUID", ref)
+		}
+		if seen[ref] {
+			t.Errorf("reference %q used twice", ref)
+		}
+		seen[ref] = true
+	}
+	if len(seen) != 3 {
+		t.Errorf("%d distinct references, want 3", len(seen))
 	}
 }

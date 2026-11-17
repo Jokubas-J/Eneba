@@ -91,8 +91,8 @@ func (s *Service) createOrderAndReserve(ctx context.Context, userID int64, lines
 	err = tx.QueryRow(ctx, `
 		INSERT INTO orders (user_id, status, total_cents, currency, payment_provider, expires_at)
 		VALUES ($1, 'pending', 0, 'EUR', $2, now() + make_interval(secs => $3))
-		RETURNING id, created_at, expires_at`,
-		userID, order.Provider, ReservationTime.Seconds()).Scan(&order.ID, &order.CreatedAt, &order.ExpiresAt)
+		RETURNING id, created_at, expires_at, payment_reference::text`,
+		userID, order.Provider, ReservationTime.Seconds()).Scan(&order.ID, &order.CreatedAt, &order.ExpiresAt, &order.PaymentReference)
 	if err != nil {
 		return Order{}, fmt.Errorf("create order: %w", err)
 	}

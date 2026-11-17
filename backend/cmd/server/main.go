@@ -64,7 +64,7 @@ func run() error {
 	// order service does not know which one it talks to.
 	var provider orders.PaymentProvider = orders.SimulatedProvider{BaseURL: cfg.AppBaseURL}
 	if cfg.PaymentProvider == "stripe" {
-		provider = orders.NewStripeProvider(cfg.StripeSecretKey, cfg.AppBaseURL)
+		provider = orders.NewStripeProvider(cfg.StripeSecretKey, cfg.AppBaseURL, cfg.AppEnv)
 	}
 	orderService := orders.NewService(pool, provider)
 	go releaseExpiredOrders(orderService)
@@ -78,6 +78,7 @@ func run() error {
 			Accounts:            accounts,
 			Orders:              orderService,
 			StripeWebhookSecret: cfg.StripeWebhookSecret,
+			Environment:         cfg.AppEnv,
 			AllowedOrigin:       cfg.AppBaseURL,
 			SecureCookies:       cfg.AppEnv == "production",
 		}),
