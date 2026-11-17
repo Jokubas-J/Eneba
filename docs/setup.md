@@ -91,3 +91,46 @@ Test card: `4242 4242 4242 4242`, any future expiry date, any CVC.
 
 Only non-secret facts: "Neon/Stripe values are in `backend/.env`", the Render service URL and the
 Vercel project URL. Everything secret stays in `.env` and in the providers' dashboards.
+
+## 6. Adding a game to the catalog
+
+There is exactly **one** way to add a game, and it is the seed command. The application has no
+admin page and no API endpoint that writes products, offers, keys or screenshots; the only code
+that inserts them is `backend/internal/seed/load.go`. (The running server never calls Steam.)
+
+1. **Add the Steam app id** to `backend/seed/app_ids.txt` (one per line, `# name` as a comment).
+   The id is the number in the game's Steam store URL: `store.steampowered.com/app/292030/…`.
+2. **Fetch** (needs internet, about 7 minutes for ~250 ids; one request every 1.6 s to stay under
+   Steam's rate limit). Run from `backend/`:
+   ```powershell
+   go run ./cmd/seed fetch
+   ```
+   It downloads every listed game again and rewrites `backend/seed/steam_games.json`: name,
+   short description, genres, release date, developer, publisher, price, popularity, the
+   portrait cover URL and up to 8 screenshot URLs. Free-to-play, unreleased and delisted games are
+   skipped and listed in the output.
+3. **Review and commit** `app_ids.txt` and `steam_games.json`. The snapshot in git is what every
+   database is seeded from, so seeding never depends on Steam being reachable.
+4. **Load** into a database. It generates the platform/region versions, sellers' offers, prices
+   and keys from the snapshot with a fixed random seed:
+   ```powershell
+   # dev branch (DATABASE_URL from backend/.env):
+   go run ./cmd/seed load -reset
+
+   # production (Neon main branch); type the value in your own terminal, never in the chat:
+   $env:DATABASE_URL = "<Neon main branch connection string>"
+   go run ./cmd/seed load -reset
+   Remove-Item Env:DATABASE_URL
+   ```
+   A variable set in the terminal wins over `backend/.env`, so the second form targets production.
+
+**What `-reset` deletes:** all products, screenshots, genres, platforms, regions, sellers, offers,
+keys **and all orders** (orders point at offers and keys). Accounts, sessions, search suggestions
+and activation guides are kept. Without `-reset` the command refuses to run on a database that
+already has products. While there are no real orders this is fine; once checkout is used, adding
+a game this way also removes order history. An "add without reset" mode would be the next step if
+that ever matters; it is not built.
+
+Images are not copied: covers and screenshots are hot-linked from Steam's CDN. If Steam later
+removes one, the site shows a placeholder for a cover and leaves a missing screenshot out
+(`frontend/src/components/RemoteImage.tsx`).
