@@ -46,6 +46,26 @@ Every state-changing request from another site's page gets 403 `forbidden_origin
 | Open redirect after login (`/login?next=https://evil.example`) | The frontend only follows `next` if it is a path on this site (starts with one `/`, not `//` or `/\`). | Otherwise the login page could send people to a phishing copy of itself. | `safeNextPath.test.ts` |
 | Cached auth response | Responses that set or clear the session are `Cache-Control: no-store`. | A cache between us and the user must never store a response carrying someone's cookie. | `TestRegisterAndLoginSetTheSessionCookie` |
 
+## Why e-mail and password only (no "magic link", no social login)
+
+Eneba's sign-in page offers "Continue with Google / Facebook / Apple / Steam / Discord / Twitch /
+X" and a password-free "Get magic link" e-mail. Our pages copy its layout but keep e-mail and
+password, on purpose:
+
+- **Magic links need an e-mail provider that actually delivers.** Sending sign-in mail from a
+  real service (Postmark, SES, Resend…) requires a domain we own and have verified with SPF/DKIM
+  records; mail from an unverified sender lands in spam or is refused. The project has no domain
+  of its own (it runs on `*.vercel.app` and `*.onrender.com`). It would also add one-time tokens,
+  their expiry and reuse rules, and a new failure mode: an evaluator who cannot receive the mail
+  cannot sign in at all.
+- **Social login is a separate setup per provider.** Each one needs an OAuth app registered in
+  that provider's console, client id and secret, exact redirect URLs per environment, review or
+  verification for some (Apple, Facebook), and account-linking rules when the same e-mail arrives
+  from two providers. Seven providers would be seven of those.
+- **Scope.** Authentication is "minimal but complete" in PLAN §1; the effort goes to search,
+  offers and safe key delivery. E-mail + password covers the brief's requirement with nothing
+  outside our control, and everything about it is tested here.
+
 ## Not done (stated honestly)
 
 - No e-mail verification, password reset, "log out everywhere" button or 2FA (PLAN §1: auth is
