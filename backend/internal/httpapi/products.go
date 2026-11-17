@@ -21,6 +21,7 @@ type Catalog interface {
 	List(ctx context.Context, filter catalog.ListFilter) (catalog.ListResult, error)
 	Suggest(ctx context.Context, text string) (catalog.SuggestResult, error)
 	Product(ctx context.Context, slug string) (catalog.ProductDetail, error)
+	ValidateCart(ctx context.Context, lines []catalog.CartLine) (catalog.ValidatedCart, error)
 }
 
 // maxFilterValues caps how many values one filter group may carry. The store has a
@@ -148,5 +149,35 @@ func handleProduct(products Catalog) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, product)
+	}
+}
+
+// cartRequest is the body of POST /api/cart/validate: the browser's cart.
+type cartRequest struct {
+	Items []catalog.CartLine `json:"items"`
+}
+
+// handleValidateCart serves POST /api/cart/validate: given the offer ids and
+// quantities in the browser's cart, it answers with today's names, prices and stock.
+// It is a POST although it changes nothing, because the cart is sent as a JSON body
+// (a GET request has no body).
+func handleValidateCart(products Catalog) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var body cartRequest
+		if !decodeJSON(w, r, &body) {
+			return
+		}
+		cart, err := products.ValidateCart(r.Context(), body.Items)
+		if errors.Is(err, catalog.ErrInvalidFilter) {
+			writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+			return
+		}
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		// Prices and stock change; the answer must not be reused from a cache.
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusOK, cart)
 	}
 }

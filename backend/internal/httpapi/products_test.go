@@ -39,6 +39,14 @@ func (f *fakeLister) Product(ctx context.Context, slug string) (catalog.ProductD
 	return catalog.ProductDetail{Slug: slug, Name: "Alpha"}, f.err
 }
 
+func (f *fakeLister) ValidateCart(ctx context.Context, lines []catalog.CartLine) (catalog.ValidatedCart, error) {
+	f.called = true
+	if len(lines) > 0 && lines[0].Quantity > 10 {
+		return catalog.ValidatedCart{}, fmt.Errorf("%w: quantity must be between 1 and 10", catalog.ErrInvalidFilter)
+	}
+	return catalog.ValidatedCart{Items: []catalog.CartItem{{OfferID: lines[0].OfferID, Quantity: lines[0].Quantity, PriceCents: 500}}, TotalCents: 500, ItemCount: 1}, f.err
+}
+
 func (f *fakeLister) List(ctx context.Context, filter catalog.ListFilter) (catalog.ListResult, error) {
 	f.called = true
 	f.gotFilter = filter
@@ -50,7 +58,7 @@ func intPtr(v int) *int { return &v }
 func get(t *testing.T, lister Catalog, target string) *httptest.ResponseRecorder {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	NewRouter(lister).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+	NewRouter(Dependencies{Catalog: lister}).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
 	return rec
 }
 
@@ -298,4 +306,28 @@ func TestProductHandler(t *testing.T) {
 			t.Errorf("GET /api/products status = %d, want 200", rec.Code)
 		}
 	})
+}
+
+func TestValidateCartHandler(t *testing.T) {
+	post := func(body string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/cart/validate", strings.NewReader(body))
+		NewRouter(Dependencies{Catalog: &fakeLister{}}).ServeHTTP(rec, req)
+		return rec
+	}
+
+	rec := post(`{"items":[{"offerId":3,"quantity":1}]}`)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"totalCents":500`) {
+		t.Errorf("status = %d, body = %s", rec.Code, rec.Body)
+	}
+	if rec.Header().Get("Cache-Control") != "no-store" {
+		t.Error("cart answer is cacheable")
+	}
+
+	if rec := post(`{"items":[{"offerId":3,"quantity":99}]}`); rec.Code != http.StatusBadRequest {
+		t.Errorf("invalid quantity: status = %d, want 400", rec.Code)
+	}
+	if rec := post(`not json`); rec.Code != http.StatusBadRequest {
+		t.Errorf("not JSON: status = %d, want 400", rec.Code)
+	}
 }

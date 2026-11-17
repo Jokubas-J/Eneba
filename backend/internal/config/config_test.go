@@ -16,16 +16,26 @@ func TestLoad(t *testing.T) {
 		{
 			name: "defaults for optional variables",
 			env:  map[string]string{"DATABASE_URL": "postgres://example"},
-			want: Config{AppEnv: "development", Port: "8080", DatabaseURL: "postgres://example"},
+			want: Config{AppEnv: "development", Port: "8080", DatabaseURL: "postgres://example", AppBaseURL: "http://localhost:5173"},
 		},
 		{
 			name: "explicit values",
-			env:  map[string]string{"DATABASE_URL": "postgres://example", "APP_ENV": "production", "PORT": "10000"},
-			want: Config{AppEnv: "production", Port: "10000", DatabaseURL: "postgres://example"},
+			env:  map[string]string{"DATABASE_URL": "postgres://example", "APP_ENV": "production", "PORT": "10000", "APP_BASE_URL": "https://shop.example/"},
+			want: Config{AppEnv: "production", Port: "10000", DatabaseURL: "postgres://example", AppBaseURL: "https://shop.example"},
 		},
 		{
 			name:    "missing database url",
 			env:     map[string]string{},
+			wantErr: true,
+		},
+		{
+			name:    "base url with a path",
+			env:     map[string]string{"DATABASE_URL": "postgres://example", "APP_BASE_URL": "https://shop.example/store"},
+			wantErr: true,
+		},
+		{
+			name:    "base url without scheme",
+			env:     map[string]string{"DATABASE_URL": "postgres://example", "APP_BASE_URL": "shop.example"},
 			wantErr: true,
 		},
 		{
@@ -40,7 +50,7 @@ func TestLoad(t *testing.T) {
 			// t.Setenv restores the previous value when the subtest ends, so cases
 			// cannot leak into each other. Every variable is set explicitly ("" when
 			// absent) so the result does not depend on the developer's own shell.
-			for _, key := range []string{"APP_ENV", "PORT", "DATABASE_URL"} {
+			for _, key := range []string{"APP_ENV", "PORT", "DATABASE_URL", "APP_BASE_URL"} {
 				t.Setenv(key, tt.env[key])
 			}
 

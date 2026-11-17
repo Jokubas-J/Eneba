@@ -10,6 +10,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -20,6 +21,9 @@ type Config struct {
 	AppEnv      string // "development" or "production"
 	Port        string // TCP port to listen on
 	DatabaseURL string // PostgreSQL connection string (secret)
+	// AppBaseURL is the public address of the frontend, e.g. https://x.vercel.app.
+	// The API accepts state-changing requests only from this origin.
+	AppBaseURL string
 }
 
 // Load reads the configuration from the process environment and validates it.
@@ -28,10 +32,16 @@ func Load() (Config, error) {
 		AppEnv:      envOr("APP_ENV", "development"),
 		Port:        envOr("PORT", "8080"),
 		DatabaseURL: os.Getenv("DATABASE_URL"),
+		AppBaseURL:  strings.TrimRight(envOr("APP_BASE_URL", "http://localhost:5173"), "/"),
 	}
 
 	if cfg.AppEnv != "development" && cfg.AppEnv != "production" {
 		return Config{}, fmt.Errorf(`APP_ENV must be "development" or "production", got %q`, cfg.AppEnv)
+	}
+	// An origin is scheme + host (+ port) and nothing else; a path would never match
+	// the browser's Origin header and every form would be refused.
+	if u, err := url.Parse(cfg.AppBaseURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.Path != "" {
+		return Config{}, fmt.Errorf("APP_BASE_URL must look like https://example.com (no path), got %q", cfg.AppBaseURL)
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, errors.New("DATABASE_URL is not set (copy backend/.env.example to backend/.env and fill it in)")
