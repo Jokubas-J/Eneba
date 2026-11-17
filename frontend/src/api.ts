@@ -290,3 +290,41 @@ export function paySimulated(id: string): Promise<Order> {
 export async function fetchOrders(): Promise<Order[]> {
   return (await getJSON<{ items: Order[] }>('/api/orders')).items
 }
+
+// --- Homepage (mirrors backend/internal/home; contract in docs/homepage.md) ---
+
+export type HomeBlock = {
+  id: number
+  type: string // which component draws it; unknown types are skipped
+  title: string | null
+  source: string // the endpoint with this block's data
+  showAllUrl: string | null
+}
+
+export type Banner = {
+  id: number
+  title: string
+  subtitle: string
+  imageUrl: string
+  linkUrl: string
+}
+
+export type Category = {
+  slug: string
+  name: string
+  count: number
+}
+
+export async function fetchHomeBlocks(): Promise<HomeBlock[]> {
+  return (await getJSON<{ items: HomeBlock[] }>('/api/home')).items
+}
+
+// fetchBlockItems loads one block's data from the source the layout named. Only our
+// own homepage endpoints are accepted: the path comes from the API, and a bad row in
+// home_blocks must not make the browser call an arbitrary address.
+export async function fetchBlockItems<T>(source: string): Promise<T[]> {
+  if (!/^\/api\/home\/[a-z-]+$/.test(source)) {
+    throw new Error(`Unexpected block source ${source}`)
+  }
+  return (await getJSON<{ items: T[] }>(source)).items
+}
