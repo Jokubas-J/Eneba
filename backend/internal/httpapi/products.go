@@ -20,6 +20,7 @@ import (
 type Catalog interface {
 	List(ctx context.Context, filter catalog.ListFilter) (catalog.ListResult, error)
 	Suggest(ctx context.Context, text string) (catalog.SuggestResult, error)
+	Product(ctx context.Context, slug string) (catalog.ProductDetail, error)
 }
 
 // maxFilterValues caps how many values one filter group may carry. The store has a
@@ -129,5 +130,23 @@ func handleSuggest(products Catalog) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, result)
+	}
+}
+
+// handleProduct serves GET /api/products/{slug}: the product page with its offers
+// and other versions.
+func handleProduct(products Catalog) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// PathValue reads the {slug} part of the route pattern (Go 1.22+).
+		product, err := products.Product(r.Context(), r.PathValue("slug"))
+		if errors.Is(err, catalog.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "This product does not exist.")
+			return
+		}
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, product)
 	}
 }

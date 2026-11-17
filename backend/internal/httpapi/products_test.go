@@ -30,6 +30,15 @@ func (f *fakeLister) Suggest(ctx context.Context, text string) (catalog.SuggestR
 	return catalog.SuggestResult{Suggestions: []string{"alpha 2"}, Items: f.result.Items, Total: 9}, f.err
 }
 
+func (f *fakeLister) Product(ctx context.Context, slug string) (catalog.ProductDetail, error) {
+	f.called = true
+	f.gotText = slug
+	if slug == "missing" {
+		return catalog.ProductDetail{}, catalog.ErrNotFound
+	}
+	return catalog.ProductDetail{Slug: slug, Name: "Alpha"}, f.err
+}
+
 func (f *fakeLister) List(ctx context.Context, filter catalog.ListFilter) (catalog.ListResult, error) {
 	f.called = true
 	f.gotFilter = filter
@@ -250,6 +259,43 @@ func TestSuggest(t *testing.T) {
 
 		if rec.Code != http.StatusInternalServerError || strings.Contains(rec.Body.String(), "10.0.0.5") {
 			t.Errorf("status = %d, body = %s", rec.Code, rec.Body)
+		}
+	})
+}
+
+func TestProductHandler(t *testing.T) {
+	t.Run("found", func(t *testing.T) {
+		lister := &fakeLister{}
+		rec := get(t, lister, "/api/products/alpha-pc-steam-key-global")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", rec.Code)
+		}
+		if lister.gotText != "alpha-pc-steam-key-global" {
+			t.Errorf("slug passed to the service = %q", lister.gotText)
+		}
+		if !strings.Contains(rec.Body.String(), `"name":"Alpha"`) {
+			t.Errorf("body = %s", rec.Body)
+		}
+	})
+
+	t.Run("unknown slug is 404 with the error shape", func(t *testing.T) {
+		rec := get(t, &fakeLister{}, "/api/products/missing")
+		if rec.Code != http.StatusNotFound || !strings.Contains(rec.Body.String(), `"code":"not_found"`) {
+			t.Errorf("status = %d, body = %s", rec.Code, rec.Body)
+		}
+	})
+
+	t.Run("other failures are 500", func(t *testing.T) {
+		rec := get(t, &fakeLister{err: errors.New("db down")}, "/api/products/alpha")
+		if rec.Code != http.StatusInternalServerError {
+			t.Errorf("status = %d, want 500", rec.Code)
+		}
+	})
+
+	t.Run("the list route still answers without a slug", func(t *testing.T) {
+		lister := &fakeLister{result: catalog.ListResult{Items: []catalog.ProductCard{}}}
+		if rec := get(t, lister, "/api/products"); rec.Code != http.StatusOK {
+			t.Errorf("GET /api/products status = %d, want 200", rec.Code)
 		}
 	})
 }

@@ -19,6 +19,7 @@ func NewRouter(products Catalog) http.Handler {
 	// keeping the prefix here means paths are identical locally and in production.
 	mux.HandleFunc("GET /api/healthz", handleHealth)
 	mux.HandleFunc("GET /api/products", handleListProducts(products))
+	mux.HandleFunc("GET /api/products/{slug}", handleProduct(products))
 	mux.HandleFunc("GET /api/search/suggest", handleSuggest(products))
 
 	return mux
