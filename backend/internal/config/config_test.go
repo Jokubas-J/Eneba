@@ -16,12 +16,34 @@ func TestLoad(t *testing.T) {
 		{
 			name: "defaults for optional variables",
 			env:  map[string]string{"DATABASE_URL": "postgres://example"},
-			want: Config{AppEnv: "development", Port: "8080", DatabaseURL: "postgres://example", AppBaseURL: "http://localhost:5173"},
+			want: Config{AppEnv: "development", Port: "8080", DatabaseURL: "postgres://example", AppBaseURL: "http://localhost:5173", PaymentProvider: "simulated"},
 		},
 		{
 			name: "explicit values",
 			env:  map[string]string{"DATABASE_URL": "postgres://example", "APP_ENV": "production", "PORT": "10000", "APP_BASE_URL": "https://shop.example/"},
-			want: Config{AppEnv: "production", Port: "10000", DatabaseURL: "postgres://example", AppBaseURL: "https://shop.example"},
+			want: Config{AppEnv: "production", Port: "10000", DatabaseURL: "postgres://example", AppBaseURL: "https://shop.example", PaymentProvider: "simulated"},
+		},
+		{
+			name: "stripe with test keys",
+			env: map[string]string{"DATABASE_URL": "postgres://example", "APP_ENV": "production", "PAYMENT_PROVIDER": "stripe",
+				"STRIPE_SECRET_KEY": "sk_test_abc", "STRIPE_WEBHOOK_SECRET": "whsec_abc"},
+			want: Config{AppEnv: "production", Port: "8080", DatabaseURL: "postgres://example", AppBaseURL: "http://localhost:5173",
+				PaymentProvider: "stripe", StripeSecretKey: "sk_test_abc", StripeWebhookSecret: "whsec_abc"},
+		},
+		{
+			name:    "stripe live key is refused",
+			env:     map[string]string{"DATABASE_URL": "postgres://example", "PAYMENT_PROVIDER": "stripe", "STRIPE_SECRET_KEY": "sk_live_abc"},
+			wantErr: true,
+		},
+		{
+			name:    "stripe in production without webhook secret",
+			env:     map[string]string{"DATABASE_URL": "postgres://example", "APP_ENV": "production", "PAYMENT_PROVIDER": "stripe", "STRIPE_SECRET_KEY": "sk_test_abc"},
+			wantErr: true,
+		},
+		{
+			name:    "unknown provider",
+			env:     map[string]string{"DATABASE_URL": "postgres://example", "PAYMENT_PROVIDER": "paypal"},
+			wantErr: true,
 		},
 		{
 			name:    "missing database url",
@@ -50,7 +72,7 @@ func TestLoad(t *testing.T) {
 			// t.Setenv restores the previous value when the subtest ends, so cases
 			// cannot leak into each other. Every variable is set explicitly ("" when
 			// absent) so the result does not depend on the developer's own shell.
-			for _, key := range []string{"APP_ENV", "PORT", "DATABASE_URL", "APP_BASE_URL"} {
+			for _, key := range []string{"APP_ENV", "PORT", "DATABASE_URL", "APP_BASE_URL", "PAYMENT_PROVIDER", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"} {
 				t.Setenv(key, tt.env[key])
 			}
 

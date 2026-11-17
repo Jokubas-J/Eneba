@@ -24,6 +24,12 @@ type Config struct {
 	// AppBaseURL is the public address of the frontend, e.g. https://x.vercel.app.
 	// The API accepts state-changing requests only from this origin.
 	AppBaseURL string
+
+	// PaymentProvider is "simulated" (default) or "stripe".
+	PaymentProvider string
+	// Stripe test-mode keys (secrets). Only needed when PaymentProvider is "stripe".
+	StripeSecretKey     string
+	StripeWebhookSecret string
 }
 
 // Load reads the configuration from the process environment and validates it.
@@ -33,6 +39,10 @@ func Load() (Config, error) {
 		Port:        envOr("PORT", "8080"),
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 		AppBaseURL:  strings.TrimRight(envOr("APP_BASE_URL", "http://localhost:5173"), "/"),
+
+		PaymentProvider:     envOr("PAYMENT_PROVIDER", "simulated"),
+		StripeSecretKey:     os.Getenv("STRIPE_SECRET_KEY"),
+		StripeWebhookSecret: os.Getenv("STRIPE_WEBHOOK_SECRET"),
 	}
 
 	if cfg.AppEnv != "development" && cfg.AppEnv != "production" {
@@ -46,7 +56,32 @@ func Load() (Config, error) {
 	if cfg.DatabaseURL == "" {
 		return Config{}, errors.New("DATABASE_URL is not set (copy backend/.env.example to backend/.env and fill it in)")
 	}
+	if err := cfg.validatePayments(); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
+}
+
+func (cfg Config) validatePayments() error {
+	switch cfg.PaymentProvider {
+	case "simulated":
+		return nil
+	case "stripe":
+	default:
+		return fmt.Errorf(`PAYMENT_PROVIDER must be "simulated" or "stripe", got %q`, cfg.PaymentProvider)
+	}
+	// This project only ever uses Stripe TEST mode. A live key (sk_live_...) is
+	// refused at start-up, so a copy-paste mistake cannot take real money.
+	if !strings.HasPrefix(cfg.StripeSecretKey, "sk_test_") {
+		return errors.New("STRIPE_SECRET_KEY must be a Stripe test-mode key (sk_test_...)")
+	}
+	// Without the webhook secret, webhooks cannot be verified and are refused. That
+	// is tolerable locally (the success page confirms payments too), but in
+	// production an abandoned payment would then only be released by the clean-up job.
+	if cfg.AppEnv == "production" && !strings.HasPrefix(cfg.StripeWebhookSecret, "whsec_") {
+		return errors.New("STRIPE_WEBHOOK_SECRET (whsec_...) is required with PAYMENT_PROVIDER=stripe in production")
+	}
+	return nil
 }
 
 func envOr(key, fallback string) string {

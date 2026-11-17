@@ -9,6 +9,9 @@ import "net/http"
 type Dependencies struct {
 	Catalog  Catalog
 	Accounts Accounts
+	Orders   Orders
+	// StripeWebhookSecret verifies Stripe webhooks; empty = webhooks are refused.
+	StripeWebhookSecret string
 	// AllowedOrigin is the frontend's address (APP_BASE_URL); state-changing
 	// requests from any other site are refused.
 	AllowedOrigin string
@@ -37,6 +40,16 @@ func NewRouter(deps Dependencies) http.Handler {
 	mux.HandleFunc("POST /api/auth/login", accounts.login)
 	mux.HandleFunc("POST /api/auth/logout", accounts.logout)
 	mux.HandleFunc("GET /api/auth/me", accounts.me)
+
+	orders := orderHandlers{orders: deps.Orders, accounts: accounts, webhookSecret: deps.StripeWebhookSecret}
+	mux.HandleFunc("POST /api/checkout", orders.checkout)
+	mux.HandleFunc("GET /api/orders", orders.list)
+	mux.HandleFunc("GET /api/orders/{id}", orders.get)
+	mux.HandleFunc("POST /api/orders/{id}/confirm", orders.confirm)
+	mux.HandleFunc("POST /api/payments/simulated/{id}", orders.paySimulated)
+	// Called by Stripe's servers, not by a browser: no Origin header, so the Origin
+	// check lets it through, and the signature check inside decides.
+	mux.HandleFunc("POST /api/webhooks/stripe", orders.stripeWebhook)
 
 	return checkOrigin(deps.AllowedOrigin, mux)
 }

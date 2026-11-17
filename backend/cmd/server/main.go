@@ -13,6 +13,7 @@ import (
 	"github.com/Jokubas-J/Eneba/backend/internal/config"
 	"github.com/Jokubas-J/Eneba/backend/internal/database"
 	"github.com/Jokubas-J/Eneba/backend/internal/httpapi"
+	"github.com/Jokubas-J/Eneba/backend/internal/orders"
 )
 
 func main() {
@@ -59,15 +60,26 @@ func run() error {
 		return err
 	}
 
+	// PAYMENT_PROVIDER picks the implementation behind the same interface; the
+	// order service does not know which one it talks to.
+	var provider orders.PaymentProvider = orders.SimulatedProvider{BaseURL: cfg.AppBaseURL}
+	if cfg.PaymentProvider == "stripe" {
+		provider = orders.NewStripeProvider(cfg.StripeSecretKey, cfg.AppBaseURL)
+	}
+	orderService := orders.NewService(pool, provider)
+	go releaseExpiredOrders(orderService)
+
 	// http.ListenAndServe(addr, handler) would be shorter, but it has no timeouts at
 	// all: a client that connects and sends nothing would hold a connection forever.
 	srv := &http.Server{
 		Addr: ":" + cfg.Port,
 		Handler: httpapi.NewRouter(httpapi.Dependencies{
-			Catalog:       products,
-			Accounts:      accounts,
-			AllowedOrigin: cfg.AppBaseURL,
-			SecureCookies: cfg.AppEnv == "production",
+			Catalog:             products,
+			Accounts:            accounts,
+			Orders:              orderService,
+			StripeWebhookSecret: cfg.StripeWebhookSecret,
+			AllowedOrigin:       cfg.AppBaseURL,
+			SecureCookies:       cfg.AppEnv == "production",
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
@@ -75,8 +87,27 @@ func run() error {
 		IdleTimeout:       60 * time.Second,
 	}
 
-	log.Printf("listening on port %s (%s)", cfg.Port, cfg.AppEnv)
+	log.Printf("listening on port %s (%s, payments: %s)", cfg.Port, cfg.AppEnv, provider.Name())
 	// ListenAndServe blocks for the lifetime of the server and only returns on
 	// failure (for example, the port is already in use).
 	return srv.ListenAndServe()
+}
+
+// releaseExpiredOrders returns the keys of unpaid, expired orders to stock once a
+// minute, for as long as the server runs. A goroutine with a ticker instead of a
+// scheduler service: one query a minute does not need more. (Stripe's "expired"
+// webhook normally does this first; see docs/checkout.md.)
+func releaseExpiredOrders(service *orders.Service) {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		n, err := service.ReleaseExpired(ctx)
+		cancel()
+		if err != nil {
+			log.Printf("release expired orders: %v", err)
+		} else if n > 0 {
+			log.Printf("released the keys of %d expired orders", n)
+		}
+	}
 }
