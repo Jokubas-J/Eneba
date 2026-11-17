@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { useSearchParams } from 'react-router'
 import { type Facets, fetchProducts } from '../api.ts'
 import { Button } from '../components/Button.tsx'
+import { Page } from '../components/Page.tsx'
 import { ProductCard, ProductCardSkeleton } from '../components/ProductCard.tsx'
 import { centsToEuros } from '../money.ts'
 import { FilterSidebar } from '../store/FilterSidebar.tsx'
@@ -41,7 +42,11 @@ export function StorePage() {
     // The query string is part of the cache key: each distinct set of filters is
     // cached separately, and going back to a previous one shows it instantly.
     queryKey: ['products', apiQuery],
-    queryFn: ({ signal }) => fetchProducts(apiQuery, signal),
+    // No abort signal here (unlike the search dropdown): in development, StrictMode
+    // mounts the page twice, the first unmount cancelled the request, and the second
+    // mount stayed attached to the cancelled request, leaving the page on its
+    // skeleton. Cancelling brings nothing for a whole-page load anyway.
+    queryFn: () => fetchProducts(apiQuery),
     // While the next set of filters loads, keep showing the previous result (dimmed)
     // instead of flashing an empty page.
     placeholderData: keepPreviousData,
@@ -58,7 +63,7 @@ export function StorePage() {
   const pageCount = data ? Math.ceil(data.total / data.pageSize) : 0
 
   return (
-    <>
+    <Page>
       <h1 className="text-heading font-bold">{filters.text ? `Results for “${filters.text}”` : 'Store'}</h1>
 
       <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-start">
@@ -142,7 +147,7 @@ export function StorePage() {
           )}
         </section>
       </div>
-    </>
+    </Page>
   )
 }
 

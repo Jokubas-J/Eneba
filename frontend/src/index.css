@@ -57,7 +57,10 @@
   /* Careful: Tailwind's leading-N (line height) is ALSO N x --spacing, so
      leading-4 is 20px here, not 16px. Line heights are therefore written as exact
      values (leading-[16px]) or come with the text-* size tokens. */
-  --container-page: 1200px; /* max-w-page */
+  /* Page widths measured on eneba.com, INCLUDING the 20px side padding (px-4), so
+     the content inside is 1200px (header, store) or 1600px (product page). */
+  --container-page: 1240px; /* max-w-page */
+  --container-wide: 1640px; /* max-w-wide */
 
   /* --- Shadows (§4): the only three the design uses --- */
   --shadow-*: initial;

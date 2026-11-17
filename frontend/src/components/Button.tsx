@@ -9,11 +9,18 @@ type Variant = 'primary' | 'outline'
 const base =
   'inline-flex h-7 items-center justify-center px-2 text-button font-extrabold whitespace-nowrap ' +
   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow ' +
-  'disabled:cursor-not-allowed disabled:opacity-50'
+  'disabled:cursor-not-allowed'
 
+// Disabled styles per variant. Lowering the opacity of the whole button would mix the
+// yellow with the purple page behind it into brown, so a disabled primary button
+// keeps its colours (and only loses the hover effect; "not-disabled" rather than
+// "enabled" because a link (ButtonLink) is never "enabled" in CSS terms); a disabled outline button
+// fades its white border and text.
 const variants: Record<Variant, string> = {
-  primary: 'bg-yellow text-black hover:brightness-95',
-  outline: 'border border-white text-white hover:bg-white hover:text-purple-base',
+  primary: 'bg-yellow text-black hover:not-disabled:brightness-95',
+  outline:
+    'border border-white text-white hover:not-disabled:bg-white hover:not-disabled:text-purple-base ' +
+    'disabled:border-white/40 disabled:text-white/40',
 }
 
 function classes(variant: Variant, extra?: string) {

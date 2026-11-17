@@ -106,3 +106,47 @@ export function CalendarIcon({ className }: IconProps) {
     </svg>
   )
 }
+
+export function HomeIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M3 11 12 4l9 7M5 10v10h5v-6h4v6h5V10" />
+    </svg>
+  )
+}
+
+export function CartPlusIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M3 4h2l2.4 11h10.2L20 7h-6" />
+      <circle cx="9" cy="19" r="1.5" />
+      <circle cx="17" cy="19" r="1.5" />
+      <path d="M9 4v6M6 7h6" />
+    </svg>
+  )
+}
+
+export function InfoIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5M12 8h.01" />
+    </svg>
+  )
+}
+
+export function ChevronIcon({ className, direction }: IconProps & { direction: 'left' | 'right' }) {
+  return (
+    <svg {...base} className={className}>
+      <path d={direction === 'left' ? 'm15 5-7 7 7 7' : 'm9 5 7 7-7 7'} />
+    </svg>
+  )
+}
+
+export function CloseIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M6 6l12 12M18 6 6 18" />
+    </svg>
+  )
+}

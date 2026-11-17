@@ -10,7 +10,9 @@ export function Layout() {
     // footer still sits at the bottom of the window instead of floating mid-screen.
     <div className="flex min-h-screen flex-col">
       <Header />
-      <main className="mx-auto w-full max-w-page flex-1 px-4 py-8">
+      {/* No width here: each page picks its own with <Page>, because the product
+          page is wider than the rest (as on eneba.com). */}
+      <main className="flex-1 py-6">
         <Outlet />
       </main>
       <Footer />
