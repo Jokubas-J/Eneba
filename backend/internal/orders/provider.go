@@ -66,6 +66,10 @@ func (p *StripeProvider) Name() string { return "stripe" }
 func (p *StripeProvider) CreateSession(ctx context.Context, order Order) (string, string, error) {
 	params := &stripe.CheckoutSessionCreateParams{
 		Mode: stripe.String(string(stripe.CheckoutSessionModePayment)),
+		// Card only. Without this Stripe also offers methods such as bank redirects
+		// whose result can arrive minutes or days later, after the reservation has
+		// expired and the keys may be sold to someone else. A card answers at once.
+		AllowedPaymentMethodTypes: []*string{stripe.String("card")},
 		// {CHECKOUT_SESSION_ID} is filled in by Stripe; the order page sends it back
 		// to /confirm so we can ask Stripe whether that session is paid.
 		SuccessURL: stripe.String(fmt.Sprintf("%s/orders/%d?session_id={CHECKOUT_SESSION_ID}", p.baseURL, order.ID)),

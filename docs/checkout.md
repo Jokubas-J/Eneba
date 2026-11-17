@@ -79,4 +79,5 @@ effect; a repeated event finds its id already there and is acknowledged without 
 | Price changed after the cart was shown | The order uses the price at checkout; the Stripe page shows that total before paying | – |
 | Someone else's order | 404, as if it did not exist (no hint that the id is valid) | `TestOrdersAreOnlyVisibleToTheirOwner` |
 | Forged webhook | 400 before any database access | `TestStripeWebhookSignature` |
+| Slow payment method (bank redirect, voucher) confirms after the reservation expired | Checkout sessions accept cards only (`AllowedPaymentMethodTypes: card`); cards and card wallets are confirmed at once | – (checked by hand on the Stripe page) |
 | Stripe unreachable at checkout | Order expired at once, keys released, 502 to the browser | `TestProviderFailureReleasesKeys` |
