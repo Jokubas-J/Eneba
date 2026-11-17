@@ -104,7 +104,7 @@ export function SearchBox({ initialText }: { initialText: string }) {
           a picture: a click on it is a click outside the box, which closes the list. */}
       {showMenu && <div className="fixed inset-0 z-10 bg-black/50" aria-hidden="true" />}
 
-      <form onSubmit={handleSubmit} role="search" className="relative z-20 order-last w-full md:order-none md:w-[550px]">
+      <form onSubmit={handleSubmit} role="search" className="relative z-20 order-last w-full md:order-none md:max-w-[550px] md:min-w-0 md:flex-1">
         <label {...getLabelProps()} className="sr-only">
           Search
         </label>

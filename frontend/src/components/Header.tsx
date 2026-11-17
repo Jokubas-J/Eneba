@@ -5,12 +5,14 @@ import { fetchMenu } from '../api.ts'
 import { useCurrentUser, useLogout } from '../auth/useAuth.ts'
 import { useCart } from '../cart/useCart.ts'
 import { SearchBox } from '../search/SearchBox.tsx'
+import { AccountMenu } from './AccountMenu.tsx'
 import { CategoriesDrawer } from './CategoriesDrawer.tsx'
 import { CartIcon, MenuIcon, UserIcon } from './icons.tsx'
 
 // Header as measured on eneba.com (design-reference.md §5): a 57px row with logo,
 // search and account links, then a 50px darker navigation strip.
-// Log in | Register for visitors; the e-mail address and "Log out" when signed in.
+// Log in | Register for visitors; the account menu (e-mail, My orders, Log out) when
+// signed in.
 // The login link carries the current page in ?next=, so signing in returns here.
 function AccountLinks() {
   const me = useCurrentUser()
@@ -20,27 +22,8 @@ function AccountLinks() {
 
   // Until the server has answered, show nothing rather than "Log in", which would
   // flash for a moment for someone who is signed in.
-  if (me.isPending) return <span className="w-[120px]" aria-hidden="true" />
-  if (me.data) {
-    return (
-      <span className="flex items-center gap-2">
-        <UserIcon className="size-5 shrink-0" />
-        <span className="hidden max-w-[160px] truncate md:inline" title={me.data.email}>
-          {me.data.email}
-        </span>
-        <span aria-hidden="true" className="hidden md:inline">
-          |
-        </span>
-        <Link to="/orders" className="hover:text-yellow">
-          My orders
-        </Link>
-        <span aria-hidden="true">|</span>
-        <button type="button" onClick={() => logout.mutate()} className="hover:text-yellow">
-          Log out
-        </button>
-      </span>
-    )
-  }
+  if (me.isPending) return <span className="skeleton block h-4 w-[120px]" aria-hidden="true" />
+  if (me.data) return <AccountMenu email={me.data.email} onLogout={() => logout.mutate()} />
   return (
     <span className="flex items-center gap-1">
       <UserIcon className="size-5" />
@@ -69,7 +52,9 @@ export function Header() {
 
   return (
     <header>
-      <div className="mx-auto flex max-w-page flex-wrap items-center gap-4 px-4 py-3">
+      {/* One row on tablets and up (logo, search, account); on phones the search box
+          moves to a row of its own below. */}
+      <div className="mx-auto flex max-w-page flex-wrap items-center gap-4 px-4 py-3 md:flex-nowrap">
         {/* A text wordmark, not Eneba's logo image: the logo is their trademark. */}
         <Link to="/" className="text-[32px] leading-none font-extrabold tracking-tight">
           eneba
@@ -81,8 +66,8 @@ export function Header() {
             "Text" chip, opening a product), so the box follows the URL. */}
         <SearchBox key={currentText} initialText={currentText} />
 
-        <div className="ml-auto flex items-center gap-2 text-sm font-semibold sm:gap-4">
-          <span className="hidden lg:inline">English EU | EUR</span>
+        <div className="ml-auto flex shrink-0 items-center gap-2 text-sm font-semibold whitespace-nowrap sm:gap-4">
+          <span className="hidden xl:inline">English EU | EUR</span>
           <Link
             to="/cart"
             aria-label={itemCount > 0 ? `Cart, ${itemCount} items` : 'Cart'}
@@ -115,9 +100,16 @@ export function Header() {
               Categories
             </button>
           </li>
+          {/* While the menu loads, a few placeholder bars keep the strip's shape. */}
+          {menu.isPending &&
+            [70, 80, 90, 80, 50].map((width, i) => (
+              <li key={i} aria-hidden="true" className="p-2">
+                <span className="skeleton block h-3" style={{ width }} />
+              </li>
+            ))}
           {stripLinks.map((link) => (
-            <li key={link.url}>
-              <Link to={link.url} className="block p-2 hover:text-white">
+            <li key={link.url} className="animate-fade-in">
+              <Link to={link.url} className="block p-2 transition-colors hover:text-white">
                 {link.label}
               </Link>
             </li>
