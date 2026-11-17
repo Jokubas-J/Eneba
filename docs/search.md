@@ -127,6 +127,10 @@ Opens from **2 characters**. Requests wait until typing pauses for **200 ms** (d
 request whose answer is no longer wanted is **aborted** (TanStack Query passes an `AbortSignal`
 to `fetch` and aborts it when the query key changes). Typing `gta 5` quickly sends one request.
 
+Verified in the browser on 2026-11-17 with Playwright, with every suggest response delayed by
+1.5 s: typing `witc`, pausing, then `her` gave `sent witc → ABORTED witc (net::ERR_ABORTED) →
+sent witcher → finished witcher`, and the list showed the answer for "witcher".
+
 Content, top to bottom, as on eneba.com:
 
 1. Up to **5 query suggestions** from `search_suggestions` (below).
