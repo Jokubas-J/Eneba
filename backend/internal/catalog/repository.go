@@ -320,8 +320,8 @@ func (r *Repository) Synonyms(ctx context.Context) ([]Synonym, error) {
 // Suggestions returns up to limit search queries that complete or resemble the typed
 // text, best first: the top section of the search dropdown.
 //
-// Shown are the curated queries and the visitor queries that were searched at least
-// minVisitorSearches times. Ranking: queries that start with the text, then queries
+// Shown are the curated queries and the visitor queries that were searched on at
+// least minVisitorDays different days. Ranking: queries that start with the text, then queries
 // with a word that starts with it, then by similarity (for typos), then the most
 // searched, then the shortest.
 func (r *Repository) Suggestions(ctx context.Context, words []string, limit int) ([]string, error) {
@@ -336,7 +336,7 @@ func (r *Repository) Suggestions(ctx context.Context, words []string, limit int)
 	rows, err := tx.Query(ctx, `
 		SELECT query
 		FROM search_suggestions
-		WHERE (source = 'curated' OR search_count >= $4)
+		WHERE (source = 'curated' OR days_searched >= $4)
 		  AND (query LIKE $2 OR query LIKE $3 OR $1 <% query)
 		ORDER BY query LIKE $2 DESC,
 		         query LIKE $3 DESC,
@@ -344,7 +344,7 @@ func (r *Repository) Suggestions(ctx context.Context, words []string, limit int)
 		         search_count DESC,
 		         length(query),
 		         query
-		LIMIT $5`, text, text+"%", "% "+text+"%", minVisitorSearches, limit)
+		LIMIT $5`, text, text+"%", "% "+text+"%", minVisitorDays, limit)
 	if err != nil {
 		return nil, fmt.Errorf("query suggestions: %w", err)
 	}
@@ -358,16 +358,24 @@ func (r *Repository) Suggestions(ctx context.Context, words []string, limit int)
 
 // RecordSearch counts one search that returned results. A query seen for the first
 // time is added as a visitor suggestion; a known one (curated or visitor) has its
-// counter raised. "ON CONFLICT ... DO UPDATE" does both in one statement, and is
+// counters raised. "ON CONFLICT ... DO UPDATE" does both in one statement, and is
 // safe when two visitors search the same text at the same moment.
+//
+// days_searched goes up only on the first search of a calendar day (database time,
+// UTC), so searching the same text a hundred times today still counts as one day.
+// In the SET clause, search_suggestions.x is the value before this update.
 func (r *Repository) RecordSearch(ctx context.Context, words []string, resultCount int) error {
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO search_suggestions (query, source, search_count, last_result_count, last_searched_at)
-		VALUES ($1, 'visitor', 1, $2, now())
+		INSERT INTO search_suggestions
+		       (query, source, search_count, days_searched, last_result_count, last_searched_at, last_searched_on)
+		VALUES ($1, 'visitor', 1, 1, $2, now(), current_date)
 		ON CONFLICT (query) DO UPDATE
 		SET search_count = search_suggestions.search_count + 1,
+		    days_searched = search_suggestions.days_searched
+		        + CASE WHEN search_suggestions.last_searched_on IS DISTINCT FROM current_date THEN 1 ELSE 0 END,
 		    last_result_count = EXCLUDED.last_result_count,
-		    last_searched_at = EXCLUDED.last_searched_at`, strings.Join(words, " "), resultCount)
+		    last_searched_at = EXCLUDED.last_searched_at,
+		    last_searched_on = EXCLUDED.last_searched_on`, strings.Join(words, " "), resultCount)
 	if err != nil {
 		return fmt.Errorf("record search: %w", err)
 	}

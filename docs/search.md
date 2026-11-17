@@ -17,14 +17,22 @@ platform and region, as on Eneba: `The Witcher 3: Wild Hunt (PC) Steam Key GLOBA
 one game are grouped only by a number (`steam_app_id`).
 
 The search therefore matches the **full variant name**, in a simplified copy
-(`products.search_name`: lower case, apostrophes removed, punctuation → spaces). Two reasons:
+(`products.search_name`: accents removed, lower case, apostrophes removed, punctuation →
+spaces). Two reasons:
 
 - Platform and region become searchable for free: `skyrim psn`, `terraria xbox`.
 - Adding a separate title column would have needed a schema change plus a re-seed of production,
   to solve a problem that `word_similarity` already solves (next section).
 
 The visitor's query is simplified by the same rules in Go (`NormalizeQuery`); a test checks that
-the Go and SQL versions give identical output.
+the Go and SQL versions give identical output, including accented and special letters.
+
+**Accents** (migration 00006): PostgreSQL's `unaccent` extension turns *Ragnarök* into
+*Ragnarok*, *Pokémon* into *Pokemon*, *ß* into *ss*. `unaccent()` cannot be used in a generated
+column directly because PostgreSQL only marks it STABLE (its dictionary could change), so a small
+wrapper `immutable_unaccent` names the dictionary explicitly. In Go the same is done with
+Unicode decomposition (NFD: "ö" becomes "o" + a combining mark, and the marks are dropped) from
+`golang.org/x/text`, plus a short table for letters that do not decompose (ß, æ, ø, ł, đ, þ).
 
 ## Matching
 
@@ -133,13 +141,26 @@ and the screen-reader announcements come from Downshift (`useCombobox`); see `do
 The `search_suggestions` table has two sources:
 
 - **curated** — about 190 short forms people type for our games (`witcher 3`, `gta v`, `rdr2`…),
-  inserted by the migration. A test checks that **every** curated suggestion finds products.
-- **visitor** — a store search (page 1) that returned results is recorded with
-  `INSERT … ON CONFLICT DO UPDATE` (one statement, safe when two people search at once). A visitor
-  query is shown to others only after it has been searched **twice**, so one person typing once
-  cannot put text in front of everyone. Because every word of a recorded query had to match a
-  product name, visitor suggestions stay within the catalog's vocabulary. Only the simplified
-  text and a counter are stored; nothing identifies the visitor.
+  inserted by migrations. A test checks that **every** curated suggestion finds products.
+- **visitor** — a store search (page 1) is recorded with `INSERT … ON CONFLICT DO UPDATE` (one
+  statement, safe when two people search at once).
+
+Visitor suggestions are shown to everyone, so they are a way to put text on other people's
+screens. The rules that make that hard (migration 00007, `isRecordable` and `RecordSearch`):
+
+| Rule | What it stops |
+|---|---|
+| Recorded only if the search **returned products** | Gibberish and messages. And because *every* word must match a product name, a recorded query is made of the catalog's own vocabulary (plus near-typos of it). |
+| Recorded only if it is at most **5 words / 40 characters** | Sentences. Real suggestions are short (`witcher 3 remastered` is 20). |
+| Shown only after it was searched on **2 different days** | One person (or a script) searching the same text many times in a row. `days_searched` goes up at most once per calendar day. |
+| Typing in the dropdown is never recorded | `wit`, `witc`, `witch` counting as three searches. |
+
+Why **days** and not **different sessions**: the store is used without signing in, and telling
+anonymous visitors apart would need a tracking cookie or storing IP addresses — personal data
+for a small benefit. Counting days needs nothing about the visitor; only the simplified text, two
+counters and the last day are stored. The remaining weakness: a determined person can search the
+same on-topic text on two days. What they can show is still limited to words of game titles. The
+next step, if it ever mattered, would be a moderation flag (`is_hidden`) or requiring more days.
 
 Typing in the dropdown records nothing (otherwise `wit`, `witc`, `witch` would all count).
 
@@ -199,6 +220,8 @@ suggestions are missing.
 | spelling | `baldur's gate 3` | 2 | Baldur's Gate 3 (PC) Steam Key GLOBAL |
 | spelling | `half-life` | 8 | Half-Life 2 (PC) Steam Key GLOBAL |
 | spelling | `elden   ring` | 1 | ELDEN RING (PC) Steam Key GLOBAL |
+| spelling | `ragnarok` | 3 | God of War Ragnarök (PC) Steam Key GLOBAL |
+| spelling | `god of war ragnarök` | 3 | God of War Ragnarök (PC) Steam Key GLOBAL |
 | platform | `skyrim psn` | 1 | The Elder Scrolls V: Skyrim (PS5) PSN Key GLOBAL |
 | platform | `terraria xbox` | 1 | Terraria (Xbox Series X\|S) Xbox Live Key GLOBAL |
 | no match | `zzxqv` | 0 | (none) |
@@ -232,8 +255,6 @@ These are with no visitor searches recorded; in production, frequently searched 
   (`eldn rng`).
 - **Very short typos tie:** `eldn` alone scores 0.60 against both *Elden Ring* and *The Elder
   Scrolls*, so popularity decides the order. `eldn ring` is unambiguous.
-- **Accented letters** are dropped, not converted: *God of War Ragnarök* is stored as
-  `ragnar k`. PostgreSQL's `unaccent` extension would fix it; not done yet.
 - **Synonyms are hand-written.** A new game with an abbreviation needs a row in
   `search_synonyms` (single-word abbreviations like `bg3` work without one).
 - **Index use:** the conditions are written in the forms the trigram GIN index supports

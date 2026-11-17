@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/Jokubas-J/Eneba/backend/internal/catalog"
 	"github.com/Jokubas-J/Eneba/backend/internal/seed"
 	"github.com/Jokubas-J/Eneba/backend/internal/testdb"
@@ -74,6 +76,14 @@ func fixture() seed.Dataset {
 // newService loads a dataset into the test database and returns a service on it.
 func newService(t *testing.T, dataset seed.Dataset) (*catalog.Service, context.Context) {
 	t.Helper()
+	service, ctx, _ := newServiceWithPool(t, dataset)
+	return service, ctx
+}
+
+// newServiceWithPool is newService for tests that also need to look into or change
+// the database directly.
+func newServiceWithPool(t *testing.T, dataset seed.Dataset) (*catalog.Service, context.Context, *pgxpool.Pool) {
+	t.Helper()
 	pool := testdb.Open(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -86,11 +96,12 @@ func newService(t *testing.T, dataset seed.Dataset) (*catalog.Service, context.C
 	// test starts from the migration's state: curated suggestions, never searched.
 	_, err := pool.Exec(ctx, `
 		DELETE FROM search_suggestions WHERE source = 'visitor';
-		UPDATE search_suggestions SET search_count = 0, last_result_count = 0, last_searched_at = NULL`)
+		UPDATE search_suggestions
+		SET search_count = 0, days_searched = 0, last_result_count = 0, last_searched_at = NULL, last_searched_on = NULL`)
 	if err != nil {
 		t.Fatalf("reset search suggestions: %v", err)
 	}
-	return catalog.NewService(catalog.NewRepository(pool)), ctx
+	return catalog.NewService(catalog.NewRepository(pool)), ctx, pool
 }
 
 func slugs(items []catalog.ProductCard) []string {

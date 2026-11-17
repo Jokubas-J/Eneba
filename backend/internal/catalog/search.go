@@ -3,6 +3,12 @@ package catalog
 import (
 	"fmt"
 	"strings"
+	"unicode"
+
+	// The Go team's text package (golang.org/x/... is maintained alongside the
+	// standard library). Already in the module graph through goose; used here for
+	// Unicode normalization, which the standard library does not include.
+	"golang.org/x/text/unicode/norm"
 )
 
 // How the product search decides what matches and what comes first.
@@ -64,8 +70,9 @@ const (
 )
 
 // NormalizeQuery simplifies a search query with the same rules the database applies
-// to product names (SQL function normalize_search): lower case, apostrophes removed,
-// everything that is not a-z or 0-9 turned into a space. It returns the words.
+// to product names (SQL function normalize_search): accents removed, lower case,
+// apostrophes removed, everything that is not a-z or 0-9 turned into a space. It
+// returns the words.
 //
 // Because only a-z and 0-9 survive, the words can never contain the LIKE wildcards
 // % and _ or regular-expression syntax, so they are safe inside those patterns.
@@ -77,7 +84,7 @@ func NormalizeQuery(text string) []string {
 	}
 
 	var b strings.Builder
-	for _, r := range strings.ToLower(text) {
+	for _, r := range strings.ToLower(removeAccents(text)) {
 		switch {
 		case (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'):
 			b.WriteRune(r)
@@ -92,6 +99,33 @@ func NormalizeQuery(text string) []string {
 		words = words[:maxQueryWords]
 	}
 	return words
+}
+
+// specialLetters are letters that are not "a plain letter plus an accent mark" in
+// Unicode, so decomposition (below) leaves them alone. PostgreSQL's unaccent
+// dictionary replaces them like this, and so do we.
+var specialLetters = strings.NewReplacer(
+	"ß", "ss", "æ", "ae", "Æ", "AE", "œ", "oe", "Œ", "OE", "ø", "o", "Ø", "O",
+	"ł", "l", "Ł", "L", "đ", "d", "Đ", "D", "ð", "d", "Ð", "D", "þ", "th", "Þ", "TH",
+	"ı", "i", "ﬁ", "fi", "ﬂ", "fl",
+)
+
+// removeAccents is the Go counterpart of PostgreSQL's unaccent: "Ragnarök" ->
+// "Ragnarok", "Pokémon" -> "Pokemon".
+//
+// Unicode can write "ö" as one character or as "o" followed by a combining
+// diaeresis mark. NFD ("canonical decomposition") converts every such letter into
+// the second form; the marks (category Mn, "nonspacing mark") are then dropped.
+// It is done before lower-casing, because lower-casing "İ" (Turkish capital I with
+// a dot) produces "i" plus a mark, which would otherwise survive.
+func removeAccents(text string) string {
+	var b strings.Builder
+	for _, r := range norm.NFD.String(specialLetters.Replace(text)) {
+		if !unicode.Is(unicode.Mn, r) {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // Synonym is one pair of interchangeable phrases from the search_synonyms table,

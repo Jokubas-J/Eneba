@@ -78,6 +78,8 @@ var searchCases = []struct {
 	{"spelling", "baldur's gate 3", "baldur's gate 3"},
 	{"spelling", "half-life", "half-life"},
 	{"spelling", "  elden   ring  ", "elden ring"},
+	{"spelling", "ragnarok", "ragnar"},
+	{"spelling", "god of war ragnarök", "ragnar"},
 
 	// Platform and region are part of the product name, so they are searchable.
 	{"platform", "skyrim psn", "psn key"},
@@ -213,7 +215,7 @@ func TestEveryCuratedSuggestionFindsProducts(t *testing.T) {
 }
 
 func TestVisitorSearchesBecomeSuggestions(t *testing.T) {
-	service, ctx := newService(t, fixture())
+	service, ctx, pool := newServiceWithPool(t, fixture())
 
 	suggestions := func(typed string) []string {
 		t.Helper()
@@ -229,28 +231,38 @@ func TestVisitorSearchesBecomeSuggestions(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// The test cannot wait for tomorrow, so it moves the recorded day back instead.
+	aDayPasses := func() {
+		t.Helper()
+		if _, err := pool.Exec(ctx, `UPDATE search_suggestions SET last_searched_on = last_searched_on - 1`); err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	// The fixture has products named Alpha, bravo, Charlie, Delta.
-	search("charlie", 1)
-	if got := suggestions("charl"); len(got) != 0 {
-		t.Errorf("after one search: suggestions %v, want none yet (needs 2 searches)", got)
+	for range 5 {
+		search("charlie", 1)
+	}
+	if got := suggestions("charl"); slices.Contains(got, "charlie") {
+		t.Errorf("after five searches on one day: suggestions %v, want charlie not shown yet", got)
 	}
 
+	aDayPasses()
 	search("CHARLIE!", 1) // simplified to the same query
-	if got := suggestions("charl"); !slices.Equal(got, []string{"charlie"}) {
-		t.Errorf("after two searches: suggestions %v, want [charlie]", got)
+	if got := suggestions("charl"); !slices.Contains(got, "charlie") {
+		t.Errorf("after searches on two days: suggestions %v, want charlie", got)
 	}
 
-	// No results, a later page, or typing in the dropdown are not counted.
-	search("zzxqv", 1)
-	search("zzxqv", 1)
-	search("delta", 2)
-	search("delta", 2)
-	for range 3 {
+	// No results, a later page, a long query, or typing in the dropdown never count.
+	long := "charlie charlie charlie charlie charlie charlie" // 6 words
+	for range 2 {
+		search("zzxqv", 1)
+		search("delta", 2)
+		search(long, 1)
 		suggestions("bravo")
+		aDayPasses()
 	}
-	// (Curated suggestions such as "deltarune" may still appear for these.)
-	for _, query := range []string{"zzxqv", "delta", "bravo"} {
+	for _, query := range []string{"zzxqv", "delta", "bravo", long} {
 		if got := suggestions(query); slices.Contains(got, query) {
 			t.Errorf("suggestions for %q = %v, want %q not to be among them", query, got, query)
 		}
@@ -389,6 +401,9 @@ func TestNormalizeQueryMatchesTheDatabase(t *testing.T) {
 		"Ratchet & Clank: Rift Apart (Xbox Series X|S)",
 		"100% Orange_Juice",
 		"Pokémon",
+		"God of War Ragnarök",
+		"Straße Ærø œuvre Łódź Đorđe þorn",
+		"naïve café ÜÑÇ İstanbul ı ﬁnal",
 		"!!!",
 	} {
 		var fromSQL string

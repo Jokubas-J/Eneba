@@ -22,10 +22,15 @@ const (
 	SuggestLimit      = 6
 	QuerySuggestLimit = 5
 
-	// A query typed by visitors becomes a suggestion for everyone only after it was
-	// searched this many times (and returned results each time it was recorded).
-	// One visitor typing nonsense once cannot put it in front of others.
-	minVisitorSearches = 2
+	// Rules that keep visitor searches from being abused as a way to show text to
+	// everyone (see docs/search.md, "Query suggestions"):
+	//   - only searches that returned products are recorded;
+	//   - only short queries are recorded (a suggestion is a few words, not a message);
+	//   - a recorded query is shown to others only after it was searched on this many
+	//     different days.
+	maxRecordedLength = 40
+	maxRecordedWords  = 5
+	minVisitorDays    = 2
 
 	// A one-letter query matches a large part of the catalog and helps nobody, so
 	// suggestions start at two characters.
@@ -76,7 +81,7 @@ func (s *Service) List(ctx context.Context, f ListFilter) (ListResult, error) {
 	// A search that found something feeds the suggestions. Only page 1 counts, so
 	// paging through one search is one search. A failure here is logged and not
 	// returned: the visitor asked for products, and got them.
-	if len(words) > 0 && total > 0 && f.Page == 1 {
+	if total > 0 && f.Page == 1 && isRecordable(words) {
 		if err := s.repo.RecordSearch(ctx, words, total); err != nil {
 			log.Printf("record search %q: %v", f.Text, err)
 		}
@@ -186,4 +191,9 @@ func fmtInvalid(reason string) error {
 // each of them finds products).
 func (s *Service) CuratedSuggestions(ctx context.Context) ([]string, error) {
 	return s.repo.CuratedSuggestions(ctx)
+}
+
+// isRecordable reports whether a search query may be recorded as a suggestion.
+func isRecordable(words []string) bool {
+	return len(words) > 0 && len(words) <= maxRecordedWords && len(strings.Join(words, " ")) <= maxRecordedLength
 }
