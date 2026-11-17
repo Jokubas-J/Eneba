@@ -72,3 +72,31 @@ commit history and in `ai-logs/`.
 - `leading-N` with a 5px spacing step meant N×5px → exact pixel line heights.
 - I edited an already-applied migration (00005) by accident; reverted, and the change went into
   a new migration (00007) instead. Applied migrations are never edited.
+
+## 2026-11-17 (continued) — product page polish, accounts, cart
+
+**Built**
+- Product page measured against a live eneba.com product page at 1920px (Playwright): 1600px
+  content, 1220px main column, 350px buy box, 109px offer rows. Screenshot gallery with lightbox,
+  important notice and activation guide per platform (from the backend), genre tags, tabs.
+- Steam snapshot re-fetched with screenshot URLs; migration 00008 (screenshots, guides).
+- Accounts: register, log in, log out, `/me`; Argon2id; hashed session tokens; HttpOnly + Secure +
+  SameSite=Lax cookie; Origin check; per-address login limiter. Failure cases in `docs/auth.md`.
+- Cart in localStorage, validated by `POST /api/cart/validate`; cart page; Buy now / add to cart.
+
+**Verified**
+- Cookie round trip through the Vercel rewrite on the live site (2026-11-17): register via
+  `https://eneba-seven.vercel.app/api/auth/register` → `201`, `Set-Cookie: session=…; HttpOnly;
+  Secure; SameSite=Lax`; `/api/auth/me` with the cookie → the user; register with
+  `Origin: https://evil.example` → `403`; logout → cookie deleted, `/me` → `null`.
+  (This created one test account, `cookie-check-<timestamp>@example.com`, in production.)
+
+**Mistakes caught**
+- Header width was 1160px instead of 1200px: the container token did not include the padding.
+- Dialogs closed themselves in development: their effect clean-up called `close()`, which fires
+  the close event; React StrictMode mounts twice, so the clean-up ran at once.
+- Whole-page queries with an abort signal stayed on the skeleton under StrictMode (the first,
+  cancelled request was the one the page waited for). The signal is now used only where
+  cancelling helps (search dropdown).
+- One commit (`aef73e1`) does not build on its own: two files it imports went into the next
+  commit. Not rewritten, because history is never rewritten in this repo.
