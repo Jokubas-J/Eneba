@@ -34,7 +34,20 @@ type Game struct {
 	CoverURL        string   `json:"coverUrl"`        // portrait cover, or "" when Steam has none
 	HeaderURL       string   `json:"headerUrl"`       // landscape image, always present
 	Recommendations int      `json:"recommendations"` // number of user recommendations; used as popularity
+	// Screenshots from the store page (at most maxScreenshots), in Steam's order.
+	Screenshots []Screenshot `json:"screenshots"`
 }
+
+// Screenshot is one image of the store page's gallery: a small version for the
+// thumbnail strip and a large one for the full-size view. Only the URLs are kept;
+// the images stay on Steam's CDN (hot-linked, like the covers).
+type Screenshot struct {
+	ThumbnailURL string `json:"thumbnailUrl"` // 600x338
+	FullURL      string `json:"fullUrl"`      // 1920x1080
+}
+
+// The product page shows one row of thumbnails; more than this is never displayed.
+const maxScreenshots = 8
 
 // ErrSkip marks an app that exists but is of no use to the catalog (free to play,
 // unreleased, not a game...). The fetch command reports it and carries on.
@@ -79,6 +92,10 @@ type appDetails struct {
 	Recommendations struct {
 		Total int `json:"total"`
 	} `json:"recommendations"`
+	Screenshots []struct {
+		PathThumbnail string `json:"path_thumbnail"`
+		PathFull      string `json:"path_full"`
+	} `json:"screenshots"`
 }
 
 // parseAppDetails converts the body of one appdetails response into a Game.
@@ -123,6 +140,7 @@ func parseAppDetails(body []byte, appID int) (Game, error) {
 		HeaderURL:       stripQuery(d.HeaderImage),
 		Recommendations: d.Recommendations.Total,
 		Genres:          []string{},
+		Screenshots:     []Screenshot{},
 	}
 	if len(d.Developers) > 0 {
 		game.Developer = cleanText(d.Developers[0])
@@ -132,6 +150,18 @@ func parseAppDetails(body []byte, appID int) (Game, error) {
 	}
 	for _, genre := range d.Genres {
 		game.Genres = append(game.Genres, cleanText(genre.Description))
+	}
+	for _, shot := range d.Screenshots {
+		if len(game.Screenshots) == maxScreenshots {
+			break
+		}
+		if shot.PathThumbnail == "" || shot.PathFull == "" {
+			continue
+		}
+		game.Screenshots = append(game.Screenshots, Screenshot{
+			ThumbnailURL: stripQuery(shot.PathThumbnail),
+			FullURL:      stripQuery(shot.PathFull),
+		})
 	}
 	return game, nil
 }

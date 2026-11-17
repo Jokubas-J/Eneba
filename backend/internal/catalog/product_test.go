@@ -2,6 +2,7 @@ package catalog_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/Jokubas-J/Eneba/backend/internal/catalog"
@@ -35,6 +36,10 @@ func productFixture() seed.Dataset {
 				Slug: "game-steam-global", Name: "Game (PC) Steam Key GLOBAL", Type: "game",
 				Description: "A game.", PlatformSlug: "steam", RegionSlug: "global", SteamAppID: 42,
 				GenreSlugs: []string{"rpg", "action"}, ReleaseDate: "2021-02-03", Developer: "Dev", Publisher: "Pub",
+				Screenshots: []seed.Screenshot{
+					{ThumbnailURL: "https://cdn.test/a-small.jpg", FullURL: "https://cdn.test/a.jpg"},
+					{ThumbnailURL: "https://cdn.test/b-small.jpg", FullURL: "https://cdn.test/b.jpg"},
+				},
 				Offers: []seed.Offer{
 					{SellerName: "Seller A", PriceCents: 900, OriginalPriceCents: 2000},
 					{SellerName: "Seller B", PriceCents: 1200, OriginalPriceCents: 2000, Keys: keys("b", 3)},
@@ -152,6 +157,27 @@ func TestProduct(t *testing.T) {
 		if europe.Slug != "game-steam-europe" || europe.PriceCents == nil || *europe.PriceCents != 1100 {
 			t.Errorf("Europe version = %+v, want price 1100", europe)
 		}
+		// The versions are product cards, with the derived discount: 1100 of 1500.
+		if europe.DiscountPercent == nil || *europe.DiscountPercent != 27 || europe.Region.Name != "Europe" {
+			t.Errorf("Europe version card = %+v, want discount 27 and region Europe", europe)
+		}
+	})
+
+	t.Run("screenshots in order", func(t *testing.T) {
+		if len(p.Screenshots) != 2 || p.Screenshots[0].FullURL != "https://cdn.test/a.jpg" ||
+			p.Screenshots[1].ThumbnailURL != "https://cdn.test/b-small.jpg" {
+			t.Errorf("screenshots = %+v", p.Screenshots)
+		}
+	})
+
+	t.Run("activation guide of the platform", func(t *testing.T) {
+		// The guides come from migration 00008, not from the fixture.
+		if p.Activation == nil || !strings.Contains(p.Activation.Notice, "Steam key") || len(p.Activation.Steps) == 0 {
+			t.Fatalf("activation = %+v, want the Steam guide", p.Activation)
+		}
+		if p.Activation.RedeemURL == nil || !strings.HasPrefix(*p.Activation.RedeemURL, "https://store.steampowered.com/") {
+			t.Errorf("redeem URL = %v", p.Activation.RedeemURL)
+		}
 	})
 
 	t.Run("all offers sold out: none is cheapest", func(t *testing.T) {
@@ -169,7 +195,7 @@ func TestProduct(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if other.Offers == nil || len(other.Offers) != 0 || other.OtherVersions == nil || other.Genres == nil {
+		if other.Offers == nil || len(other.Offers) != 0 || other.OtherVersions == nil || other.Genres == nil || other.Screenshots == nil {
 			t.Errorf("product = %+v, want empty (not null) lists", other)
 		}
 		if other.ReleaseDate != nil {

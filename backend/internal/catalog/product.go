@@ -36,40 +36,47 @@ type Offer struct {
 	IsCheapest bool `json:"isCheapest"`
 }
 
-// ProductVersion is the same game on another platform or for another region: one
-// entry of the "Other versions" strip.
-type ProductVersion struct {
-	Slug       string `json:"slug"`
-	Name       string `json:"name"`
-	Platform   Named  `json:"platform"`
-	Region     Named  `json:"region"`
-	PriceCents *int   `json:"priceCents"` // cheapest in stock; null when sold out
-	OfferCount int    `json:"offerCount"`
+// Screenshot is one image of the product's gallery (hot-linked from Steam's CDN).
+type Screenshot struct {
+	ThumbnailURL string `json:"thumbnailUrl"`
+	FullURL      string `json:"fullUrl"`
+}
+
+// ActivationGuide explains how a key of the product's platform is activated.
+type ActivationGuide struct {
+	Notice    string   `json:"notice"`
+	Steps     []string `json:"steps"`
+	RedeemURL *string  `json:"redeemUrl"` // null when there is no stable public page
 }
 
 // ProductDetail is everything the product page shows.
 type ProductDetail struct {
-	ID          int64   `json:"id"`
-	Slug        string  `json:"slug"`
-	Name        string  `json:"name"`
-	Description string  `json:"description"`
-	Type        string  `json:"type"`
-	CoverURL    string  `json:"coverUrl"`
-	Platform    Named   `json:"platform"`
-	Region      Named   `json:"region"`
-	Genres      []Named `json:"genres"`
-	ReleaseDate *string `json:"releaseDate"` // YYYY-MM-DD; null when unknown
-	Developer   string  `json:"developer"`
-	Publisher   string  `json:"publisher"`
-	SteamAppID  *int    `json:"steamAppId"`
+	ID          int64        `json:"id"`
+	Slug        string       `json:"slug"`
+	Name        string       `json:"name"`
+	Description string       `json:"description"`
+	Type        string       `json:"type"`
+	CoverURL    string       `json:"coverUrl"`
+	Platform    Named        `json:"platform"`
+	Region      Named        `json:"region"`
+	Genres      []Named      `json:"genres"`
+	ReleaseDate *string      `json:"releaseDate"` // YYYY-MM-DD; null when unknown
+	Developer   string       `json:"developer"`
+	Publisher   string       `json:"publisher"`
+	SteamAppID  *int         `json:"steamAppId"`
+	Screenshots []Screenshot `json:"screenshots"`
+	// Activation is null when no guide exists for the platform.
+	Activation *ActivationGuide `json:"activation"`
 	// Offers: in stock first, cheapest first; sold-out offers at the end.
-	Offers        []Offer          `json:"offers"`
-	OtherVersions []ProductVersion `json:"otherVersions"`
+	Offers []Offer `json:"offers"`
+	// OtherVersions are the same game on other platforms or for other regions, in
+	// the same shape as the store's product cards so the page can reuse the card.
+	OtherVersions []ProductCard `json:"otherVersions"`
 }
 
 // Product loads one product with its offers and other versions.
 //
-// The four reads (product, genres, offers, versions) depend only on the product's id
+// The other reads (genres, screenshots, guide, offers, versions) depend only on the product's id
 // and its Steam app id, so after the first query the other three are sent together
 // in one batch, inside one read-only transaction: the page sees one consistent
 // snapshot of prices and stock.
@@ -128,10 +135,17 @@ func (r *Repository) Product(ctx context.Context, slug string) (ProductDetail, e
 		) offer
 		ORDER BY stock = 0, price_cents, seller_rating DESC, id`, p.ID)
 	batch.Queue(`
-		SELECT slug, name, platform_slug, platform_name, region_slug, region_name, price_cents, offer_count
+		SELECT id, slug, name, product_type, cover_url,
+		       platform_slug, platform_name, region_slug, region_name,
+		       price_cents, original_price_cents, offer_count
 		FROM product_listing
 		WHERE steam_app_id = $1 AND id <> $2
 		ORDER BY platform_name, region_name, id`, p.SteamAppID, p.ID)
+	batch.Queue(`
+		SELECT thumbnail_url, full_url FROM product_screenshots
+		WHERE product_id = $1 ORDER BY sort_order`, p.ID)
+	batch.Queue(`
+		SELECT notice, steps, redeem_url FROM activation_guides WHERE platform_slug = $1`, p.Platform.Slug)
 
 	results := tx.SendBatch(ctx, batch)
 	defer results.Close()
@@ -162,14 +176,34 @@ func (r *Repository) Product(ctx context.Context, slug string) (ProductDetail, e
 	if err != nil {
 		return ProductDetail{}, fmt.Errorf("load other versions: %w", err)
 	}
-	p.OtherVersions, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (ProductVersion, error) {
-		var v ProductVersion
-		err := row.Scan(&v.Slug, &v.Name, &v.Platform.Slug, &v.Platform.Name, &v.Region.Slug, &v.Region.Name,
-			&v.PriceCents, &v.OfferCount)
-		return v, err
+	p.OtherVersions, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (ProductCard, error) {
+		var c ProductCard
+		err := row.Scan(&c.ID, &c.Slug, &c.Name, &c.Type, &c.CoverURL,
+			&c.Platform.Slug, &c.Platform.Name, &c.Region.Slug, &c.Region.Name,
+			&c.PriceCents, &c.OriginalPriceCents, &c.OfferCount)
+		return c, err
 	})
 	if err != nil {
 		return ProductDetail{}, fmt.Errorf("read other versions: %w", err)
+	}
+
+	rows, err = results.Query()
+	if err != nil {
+		return ProductDetail{}, fmt.Errorf("load screenshots: %w", err)
+	}
+	if p.Screenshots, err = pgx.CollectRows(rows, pgx.RowToStructByPos[Screenshot]); err != nil {
+		return ProductDetail{}, fmt.Errorf("read screenshots: %w", err)
+	}
+
+	var guide ActivationGuide
+	err = results.QueryRow().Scan(&guide.Notice, &guide.Steps, &guide.RedeemURL)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		// No guide for this platform: the page leaves the box out.
+	case err != nil:
+		return ProductDetail{}, fmt.Errorf("load activation guide: %w", err)
+	default:
+		p.Activation = &guide
 	}
 	return p, nil
 }
@@ -185,6 +219,7 @@ func (s *Service) Product(ctx context.Context, slug string) (ProductDetail, erro
 		o.DiscountPercent = DiscountPercent(o.PriceCents, o.OriginalPriceCents)
 	}
 	markCheapest(p.Offers)
+	addDiscounts(p.OtherVersions)
 	return p, nil
 }
 

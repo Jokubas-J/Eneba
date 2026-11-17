@@ -47,6 +47,7 @@ type Product struct {
 	Popularity   int
 	SteamAppID   int
 	GenreSlugs   []string
+	Screenshots  []Screenshot // the same for every version of a game
 	Offers       []Offer
 }
 
@@ -169,6 +170,7 @@ func Generate(games []Game, seedValue uint64) Dataset {
 				Popularity:   int(float64(game.Recommendations) * v.popularityFactor),
 				SteamAppID:   game.SteamAppID,
 				GenreSlugs:   genreSlugs,
+				Screenshots:  game.Screenshots,
 				Offers:       makeOffers(rng, referencePrice, keySeen),
 			})
 		}

@@ -44,7 +44,7 @@ func Load(ctx context.Context, pool *pgxpool.Pool, dataset Dataset, reset bool) 
 		// ids (and therefore the same URLs and test expectations) as the first one.
 		_, err := tx.Exec(ctx, `
 			TRUNCATE license_keys, order_items, orders, payment_events,
-			         offers, sellers, product_genres, products, genres, regions, platforms
+			         offers, sellers, product_genres, product_screenshots, products, genres, regions, platforms
 			RESTART IDENTITY`)
 		if err != nil {
 			return Counts{}, fmt.Errorf("empty tables: %w", err)
@@ -100,10 +100,13 @@ func Load(ctx context.Context, pool *pgxpool.Pool, dataset Dataset, reset bool) 
 	// Offers need the product ids, and keys need the offer ids, so each level is
 	// inserted after the one above it has returned its ids.
 	batch = &pgx.Batch{}
-	var genreRows [][]any
+	var genreRows, screenshotRows [][]any
 	for i, p := range dataset.Products {
 		for _, slug := range p.GenreSlugs {
 			genreRows = append(genreRows, []any{productIDs[i], genreIDs[slug]})
+		}
+		for position, shot := range p.Screenshots {
+			screenshotRows = append(screenshotRows, []any{productIDs[i], shot.ThumbnailURL, shot.FullURL, position})
 		}
 		for _, o := range p.Offers {
 			batch.Queue(`INSERT INTO offers (product_id, seller_id, price_cents, original_price_cents) VALUES ($1, $2, $3, $4) RETURNING id`,
@@ -133,6 +136,10 @@ func Load(ctx context.Context, pool *pgxpool.Pool, dataset Dataset, reset bool) 
 	if _, err := tx.CopyFrom(ctx, pgx.Identifier{"product_genres"},
 		[]string{"product_id", "genre_id"}, pgx.CopyFromRows(genreRows)); err != nil {
 		return Counts{}, fmt.Errorf("insert product genres: %w", err)
+	}
+	if _, err := tx.CopyFrom(ctx, pgx.Identifier{"product_screenshots"},
+		[]string{"product_id", "thumbnail_url", "full_url", "sort_order"}, pgx.CopyFromRows(screenshotRows)); err != nil {
+		return Counts{}, fmt.Errorf("insert screenshots: %w", err)
 	}
 	if _, err := tx.CopyFrom(ctx, pgx.Identifier{"license_keys"},
 		[]string{"offer_id", "key_value"}, pgx.CopyFromRows(keyRows)); err != nil {

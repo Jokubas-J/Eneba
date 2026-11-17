@@ -19,7 +19,12 @@ const witcherResponse = `{"292030": {"success": true, "data": {
 	"price_overview": {"currency": "EUR", "initial": 2999, "final": 599, "discount_percent": 80},
 	"genres": [{"id": "3", "description": "RPG"}, {"id": "1", "description": "Action"}],
 	"release_date": {"coming_soon": false, "date": "18 May, 2015"},
-	"recommendations": {"total": 853406}
+	"recommendations": {"total": 853406},
+	"screenshots": [
+		{"id": 0, "path_thumbnail": "https://cdn.test/ss_1.600x338.jpg?t=1", "path_full": "https://cdn.test/ss_1.1920x1080.jpg?t=1"},
+		{"id": 1, "path_thumbnail": "", "path_full": "https://cdn.test/broken.jpg"},
+		{"id": 2, "path_thumbnail": "https://cdn.test/ss_2.600x338.jpg", "path_full": "https://cdn.test/ss_2.1920x1080.jpg"}
+	]
 }}}`
 
 func TestParseAppDetails(t *testing.T) {
@@ -44,6 +49,15 @@ func TestParseAppDetails(t *testing.T) {
 		{"Recommendations", game.Recommendations, 853406},
 		{"number of genres", len(game.Genres), 2},
 	}
+	// Incomplete entries are skipped and the cache-buster is removed.
+	wantShots := []Screenshot{
+		{ThumbnailURL: "https://cdn.test/ss_1.600x338.jpg", FullURL: "https://cdn.test/ss_1.1920x1080.jpg"},
+		{ThumbnailURL: "https://cdn.test/ss_2.600x338.jpg", FullURL: "https://cdn.test/ss_2.1920x1080.jpg"},
+	}
+	if len(game.Screenshots) != len(wantShots) || game.Screenshots[0] != wantShots[0] || game.Screenshots[1] != wantShots[1] {
+		t.Errorf("Screenshots = %+v, want %+v", game.Screenshots, wantShots)
+	}
+
 	for _, c := range checks {
 		if c.got != c.want {
 			t.Errorf("%s = %v, want %v", c.field, c.got, c.want)

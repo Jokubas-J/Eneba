@@ -17,7 +17,8 @@ func TestLoad(t *testing.T) {
 	defer cancel()
 
 	games := []seed.Game{
-		{SteamAppID: 10, Type: "game", Name: "First Game", PriceCents: 1999, Genres: []string{"Action", "RPG"}, ReleaseDate: "2020-03-04", Recommendations: 500},
+		{SteamAppID: 10, Type: "game", Name: "First Game", PriceCents: 1999, Genres: []string{"Action", "RPG"}, ReleaseDate: "2020-03-04", Recommendations: 500,
+			Screenshots: []seed.Screenshot{{ThumbnailURL: "https://cdn.test/1s.jpg", FullURL: "https://cdn.test/1.jpg"}, {ThumbnailURL: "https://cdn.test/2s.jpg", FullURL: "https://cdn.test/2.jpg"}}},
 		{SteamAppID: 20, Type: "game", Name: "Second Game", PriceCents: 4999, Genres: []string{"RPG"}, ReleaseDate: ""},
 	}
 	dataset := seed.Generate(games, 1)
@@ -58,6 +59,25 @@ func TestLoad(t *testing.T) {
 			t.Errorf("%s has %d rows, want %d", table, got, want)
 		}
 	}
+
+	t.Run("screenshots are stored per product, in order", func(t *testing.T) {
+		var products, perProduct int
+		var first string
+		err := pool.QueryRow(ctx, `
+			SELECT count(DISTINCT product_id), max(n), min(first_url)
+			FROM (
+				SELECT product_id, count(*) OVER (PARTITION BY product_id) AS n,
+				       first_value(full_url) OVER (PARTITION BY product_id ORDER BY sort_order) AS first_url
+				FROM product_screenshots
+			) s`).Scan(&products, &perProduct, &first)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Every generated version of game 10 gets its two screenshots; game 20 has none.
+		if products == 0 || perProduct != 2 || first != "https://cdn.test/1.jpg" {
+			t.Errorf("products with screenshots = %d, per product = %d, first = %q", products, perProduct, first)
+		}
+	})
 
 	t.Run("every key starts available", func(t *testing.T) {
 		var notAvailable int
