@@ -215,4 +215,9 @@ func TestLayoutAndBannersComeFromTheDatabase(t *testing.T) {
 	if len(banners) != 4 || banners[0].Title != "ELDEN RING" {
 		t.Errorf("banners = %+v, want 4 with ELDEN RING first", banners)
 	}
+	// Migration 00014 derived the portrait tile image from the hero URL.
+	wantTile := "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1091500/library_600x900.jpg"
+	if got := banners[1].TileImageURL; got == nil || *got != wantTile {
+		t.Errorf("Cyberpunk tile image = %v, want %s", got, wantTile)
+	}
 }

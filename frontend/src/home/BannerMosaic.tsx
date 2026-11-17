@@ -23,7 +23,9 @@ function BannerTile({ banner, large = false, className }: { banner: Banner; larg
   const content = (
     <>
       <RemoteImage
-        src={banner.imageUrl}
+        // A narrow tile uses the portrait art when there is one: the wide art (3:1)
+        // in a tall tile (about 1:2) showed only a sliver from its middle.
+        src={large ? banner.imageUrl : (banner.tileImageUrl ?? banner.imageUrl)}
         // The large tile is the first thing on the page: load it at once.
         loading={large ? 'eager' : 'lazy'}
         className="size-full object-cover transition-transform duration-300 group-hover:scale-105"

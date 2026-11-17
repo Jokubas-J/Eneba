@@ -305,7 +305,8 @@ export type Banner = {
   id: number
   title: string
   subtitle: string
-  imageUrl: string
+  imageUrl: string // wide art, for the large tile
+  tileImageUrl: string | null // portrait art for a narrow tile
   linkUrl: string
 }
 

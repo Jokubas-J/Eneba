@@ -59,14 +59,17 @@ type Banner struct {
 	ID       int64  `json:"id"`
 	Title    string `json:"title"`
 	Subtitle string `json:"subtitle"`
-	ImageURL string `json:"imageUrl"`
-	LinkURL  string `json:"linkUrl"`
+	ImageURL string `json:"imageUrl"` // wide art, for the large tile
+	// TileImageURL is a portrait image for a narrow tile, where the wide art would
+	// show only a sliver; null = use ImageURL there too.
+	TileImageURL *string `json:"tileImageUrl"`
+	LinkURL      string  `json:"linkUrl"`
 }
 
 // Banners returns the active banners; the first one is the large tile.
 func (s *Service) Banners(ctx context.Context) ([]Banner, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, title, subtitle, image_url, link_url
+		SELECT id, title, subtitle, image_url, tile_image_url, link_url
 		FROM banners
 		WHERE is_active
 		ORDER BY sort_order, id`)
