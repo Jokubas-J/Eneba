@@ -49,6 +49,8 @@
   --text-buybox--line-height: 28px;
   --text-heading: 30px;
   --text-heading--line-height: 37.5px;
+  --text-display: 80px; /* "Hi! It's nice to see you!" on the sign-in pages */
+  --text-display--line-height: 88px;
 
   /* --- Spacing (§4) ---
      Eneba spaces everything in multiples of 5px, where Tailwind's default step is
