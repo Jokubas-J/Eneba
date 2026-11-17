@@ -134,3 +134,26 @@ that ever matters; it is not built.
 Images are not copied: covers and screenshots are hot-linked from Steam's CDN. If Steam later
 removes one, the site shows a placeholder for a cover and leaves a missing screenshot out
 (`frontend/src/components/RemoteImage.tsx`).
+
+## 7. Running the end-to-end test
+
+One Playwright test walks the whole purchase in a real browser against the real Go server
+(`frontend/e2e/purchase.e2e.ts`): search with a typo → product → add to cart → register on the
+way to checkout → simulated payment → key on the order page → order in the history.
+
+```powershell
+cd frontend
+npx playwright install chromium   # once: downloads the browser Playwright drives
+npm run e2e
+```
+
+What it does on its own (`frontend/playwright.config.ts`):
+- reads `TEST_DATABASE_URL` from `backend/.env` and refuses to run if it is missing or equal to
+  `DATABASE_URL`: like every database test, it only touches the Neon **test** branch;
+- runs `seed load -reset` on the test branch (real catalog snapshot), then starts the Go server
+  on port 8091 with `PAYMENT_PROVIDER=simulated`, and Vite on port 5174, so it never reuses a
+  development server on 8080 / 5173;
+- stops both servers when it is done.
+
+Do not run it at the same time as `go test ./...`: both use the test branch, and the Go tests
+replace the catalog with their own small fixtures.
