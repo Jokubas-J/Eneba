@@ -190,3 +190,51 @@ database. Order page showed 4 keys (2 + 1 + 1) and €124.36; the cart emptied; 
 
 **Lesson.** Anything sent to a shared external account must be unique across every environment
 that uses it, not just within one database.
+
+## 2026-11-17 (continued) — PLAN day 6 (homepage, Categories menu, polish, end-to-end test)
+
+**Decided (by the author)**
+- Best sellers ranks by real sales only: keys sold in paid orders over 30 days, then Steam
+  popularity. No invented order history.
+- Banners use Steam's wide "library hero" art, checked once with a HEAD request.
+- Icons are content: an icon **key** per genre / platform / region / menu entry in the database,
+  drawn by lucide-react in the frontend, with a default icon for unknown keys.
+- Categories menu: option B (table-driven), built now.
+
+**Built**
+- Homepage entirely from the API: `home_blocks` lists the blocks; five endpoints serve their data
+  (banners, best sellers, biggest discounts, new releases, categories). Each block loads, fails
+  and retries on its own; unknown block types are skipped. Docs: `docs/homepage.md`.
+- Store sort "Biggest discount" (target of that block's Show all).
+- Categories menu: `menu_sections` / `menu_links` (+ `taxonomy_icons`), `GET /api/menu`, a
+  left drawer (native dialog) and the nav strip, which is no longer hardcoded in the header.
+- Polish: site-wide yellow keyboard-focus outline, "Skip to content", a tab title per page.
+- End-to-end Playwright test of the whole purchase on the Neon test branch (`npm run e2e`).
+- New dependencies, all justified in `docs/tooling.md`: lucide-react; React Testing Library and
+  jsdom (dev); @playwright/test (dev).
+
+**Verified**
+- Backend tests on the test branch for every ranking rule, the menu and the layout; frontend
+  rendering tests for unknown block types, a failing block and icon fallbacks (90 unit tests).
+- Visual check against screenshots 01, 04, 06 at 1568px and on a 390px phone; audit of every page
+  at both widths (overflow, alt text, control names, one h1, labelled inputs).
+- A homepage change made purely in data: migration 00012 removed the redundant "Show all" under
+  Categories, no frontend change.
+- Production serves `/api/home`, `/api/home/categories` (with icon keys) and `/api/menu`.
+
+**Bugs found**
+- By the end-to-end test: with the search suggestions open and nothing highlighted, Enter only
+  closed the list (Downshift 9.5 cancels the form submit whenever the list is open). Fixed with
+  Downshift's `preventDownshiftDefault`; my manual checks on day 3 had pressed Enter before the
+  debounced list appeared, so they never saw it.
+- By the end-to-end test: the order-history link's accessible name ran together
+  ("Order #117/11/2026"): margin is not a space for screen readers.
+- By the polish audit: the browser's default focus ring was nearly invisible on our purples.
+- By looking at the phone screenshot: the drawer was sized `100vw`, which includes the scrollbar,
+  and cut off the counts.
+
+**Mistakes caught**
+- Taking a method value (`h.Blocks`) from a nil interface panics in Go at once; router tests that
+  build the router without a homepage service crashed. Each method is now wrapped in a closure.
+- Stopping a background `npm run dev` left the Vite process running; later runs silently moved to
+  other ports. Leftover servers are now stopped by port and command line.
