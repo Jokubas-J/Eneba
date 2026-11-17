@@ -41,6 +41,12 @@
   --text-search--line-height: 19px;
   --text-price: 22px;
   --text-price--line-height: 22px;
+  --text-offer: 20px; /* offer-row price */
+  --text-offer--line-height: 25px;
+  --text-title: 26px; /* product title h1 */
+  --text-title--line-height: 32.5px;
+  --text-buybox: 28px; /* buy-box price */
+  --text-buybox--line-height: 28px;
   --text-heading: 30px;
   --text-heading--line-height: 37.5px;
 
@@ -48,6 +54,9 @@
      Eneba spaces everything in multiples of 5px, where Tailwind's default step is
      4px. With this, p-1 = 5px, p-2 = 10px, p-4 = 20px, p-8 = 40px, h-7 = 35px. */
   --spacing: 5px;
+  /* Careful: Tailwind's leading-N (line height) is ALSO N x --spacing, so
+     leading-4 is 20px here, not 16px. Line heights are therefore written as exact
+     values (leading-[16px]) or come with the text-* size tokens. */
   --container-page: 1200px; /* max-w-page */
 
   /* --- Shadows (§4): the only three the design uses --- */

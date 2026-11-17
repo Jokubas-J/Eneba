@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router'
 import { Layout } from './components/Layout.tsx'
 import { HomePage } from './pages/HomePage.tsx'
 import { NotFoundPage } from './pages/NotFoundPage.tsx'
+import { ProductPage } from './pages/ProductPage.tsx'
 import { StorePage } from './pages/StorePage.tsx'
 
 // The route table: which page component belongs to which URL. Every page is nested
@@ -12,6 +13,7 @@ function App() {
       <Route element={<Layout />}>
         <Route path="/" element={<HomePage />} />
         <Route path="/store" element={<StorePage />} />
+        <Route path="/product/:slug" element={<ProductPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

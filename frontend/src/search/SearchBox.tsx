@@ -170,7 +170,7 @@ function ProductRow({ product }: { product: ProductCard }) {
         {product.coverUrl && <img src={product.coverUrl} alt="" className="size-full object-cover" />}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="inline-block rounded-pill border border-teal px-2 text-xs leading-5 font-extrabold text-teal">
+        <span className="inline-block rounded-pill border border-teal px-2 text-xs leading-[20px] font-extrabold text-teal">
           {product.platform.name}
         </span>
         <span className="mt-1 line-clamp-2 text-sm leading-[18px] font-extrabold">{product.name}</span>
@@ -183,7 +183,7 @@ function ProductRow({ product }: { product: ProductCard }) {
             <span className="block text-xs font-extrabold text-text-muted">
               From {discounted && <s className="text-text-faded">{formatPrice(product.originalPriceCents!)}</s>}
             </span>
-            <span className="block text-lg leading-6 font-extrabold">{formatPrice(product.priceCents)}</span>
+            <span className="block text-lg leading-[24px] font-extrabold">{formatPrice(product.priceCents)}</span>
           </>
         )}
       </span>

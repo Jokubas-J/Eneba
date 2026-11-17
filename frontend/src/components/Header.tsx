@@ -54,7 +54,7 @@ export function Header() {
       </div>
 
       <nav aria-label="Main" className="bg-overlay-nav">
-        <ul className="mx-auto flex h-10 max-w-page items-center gap-2 overflow-x-auto overflow-y-hidden px-2 [scrollbar-width:none] leading-4 font-semibold whitespace-nowrap text-text-nav">
+        <ul className="mx-auto flex h-10 max-w-page items-center gap-2 overflow-x-auto overflow-y-hidden px-2 [scrollbar-width:none] leading-[16px] font-semibold whitespace-nowrap text-text-nav">
           <li>
             <Link to="/store" className="flex items-center gap-2 p-2 hover:text-white">
               <MenuIcon className="size-5" />

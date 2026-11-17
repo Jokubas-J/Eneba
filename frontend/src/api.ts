@@ -50,6 +50,17 @@ export type ProductList = {
   facets: Facets
 }
 
+// ApiError is a failed request with its HTTP status, so a page can tell "not found"
+// (404: show a not-found message) from "something broke" (show a retry button).
+export class ApiError extends Error {
+  readonly status: number
+
+  constructor(path: string, status: number) {
+    super(`GET ${path} failed with status ${status}`)
+    this.status = status
+  }
+}
+
 // Fetches a JSON resource from our API. The path is always relative ("/api/..."):
 // the dev server and Vercel both forward it to the Go server.
 //
@@ -61,7 +72,7 @@ async function getJSON<T>(path: string, signal?: AbortSignal): Promise<T> {
   // fetch() only rejects on network failure. A 404 or 500 is a "successful" fetch,
   // so the status has to be checked by hand or errors would be parsed as data.
   if (!response.ok) {
-    throw new Error(`GET ${path} failed with status ${response.status}`)
+    throw new ApiError(path, response.status)
   }
   // The cast is a promise to the compiler, not a runtime check: TypeScript types do
   // not exist at runtime, so the shape is only as true as the backend makes it.
@@ -86,4 +97,53 @@ export type SuggestResult = {
 
 export function fetchSuggestions(text: string, signal?: AbortSignal): Promise<SuggestResult> {
   return getJSON<SuggestResult>(`/api/search/suggest?q=${encodeURIComponent(text)}`, signal)
+}
+
+// GET /api/products/{slug} — mirrors catalog.ProductDetail in the backend.
+export type Seller = {
+  name: string
+  rating: number // 0-10
+  ratingCount: number
+  isVerified: boolean
+}
+
+export type Offer = {
+  id: number
+  seller: Seller
+  priceCents: number
+  originalPriceCents: number
+  discountPercent: number
+  stock: number // keys available now; 0 = sold out
+  isCheapest: boolean // the cheapest offer that is in stock
+}
+
+export type ProductVersion = {
+  slug: string
+  name: string
+  platform: Named
+  region: Named
+  priceCents: number | null
+  offerCount: number
+}
+
+export type ProductDetail = {
+  id: number
+  slug: string
+  name: string
+  description: string
+  type: string
+  coverUrl: string
+  platform: Named
+  region: Named
+  genres: Named[]
+  releaseDate: string | null // YYYY-MM-DD
+  developer: string
+  publisher: string
+  steamAppId: number | null
+  offers: Offer[]
+  otherVersions: ProductVersion[]
+}
+
+export function fetchProduct(slug: string, signal?: AbortSignal): Promise<ProductDetail> {
+  return getJSON<ProductDetail>(`/api/products/${encodeURIComponent(slug)}`, signal)
 }

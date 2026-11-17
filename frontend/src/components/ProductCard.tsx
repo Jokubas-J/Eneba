@@ -1,17 +1,13 @@
 import { Link } from 'react-router'
 import type { ProductCard as Product } from '../api.ts'
 import { formatPrice } from '../money.ts'
-
-// Regions whose keys can be activated by the visitor. Eneba colors the region label
-// green when the key works in the visitor's country and pink when it does not. This
-// project has no country detection, so it assumes a visitor in the EU.
-const regionsUsableInEU = new Set(['global', 'europe'])
+import { isUsableInEU } from '../region.ts'
 
 // Product card as measured on eneba.com (design-reference.md §5, screenshots 02-05):
 // dark body, 1px teal border, portrait cover with the platform strip over its lower
 // edge, then title, region and price.
 export function ProductCard({ product }: { product: Product }) {
-  const usable = regionsUsableInEU.has(product.region.slug)
+  const usable = isUsableInEU(product.region.slug)
 
   return (
     // The whole card is one link, so the entire surface is clickable and the product
@@ -42,7 +38,7 @@ export function ProductCard({ product }: { product: Product }) {
             making their card's text block shorter than the others. */}
         <h3 className="line-clamp-2 min-h-[36px] text-xs leading-[18px] font-extrabold">{product.name}</h3>
 
-        <p className={`mt-1 text-xs leading-3 font-extrabold uppercase ${usable ? 'text-green-region' : 'text-pink-region'}`}>
+        <p className={`mt-1 text-xs leading-[12px] font-extrabold uppercase ${usable ? 'text-green-region' : 'text-pink-region'}`}>
           {product.region.name}
         </p>
 
@@ -52,7 +48,7 @@ export function ProductCard({ product }: { product: Product }) {
             <p className="text-price font-extrabold text-text-muted">Sold out</p>
           ) : (
             <>
-              <p className="flex items-baseline gap-1 text-xs leading-3 font-extrabold text-text-muted">
+              <p className="flex items-baseline gap-1 text-xs leading-[12px] font-extrabold text-text-muted">
                 From
                 {product.discountPercent !== null && product.discountPercent > 0 && product.originalPriceCents !== null && (
                   <>
