@@ -6,6 +6,7 @@ import { useCart } from '../cart/useCart.ts'
 import { Button, ButtonLink } from '../components/Button.tsx'
 import { InfoIcon, VerifiedIcon } from '../components/icons.tsx'
 import { Page } from '../components/Page.tsx'
+import { PageTitle } from '../components/PageTitle.tsx'
 import { formatPrice } from '../money.ts'
 import { OrderLines } from '../orders/OrderLines.tsx'
 import { RequireUser } from '../orders/RequireUser.tsx'
@@ -28,6 +29,7 @@ export function OrderPage() {
 // the page calls /confirm (which asks Stripe directly) every 2 seconds for a minute.
 function OrderView() {
   const { id = '' } = useParams()
+  const title = <PageTitle title={`Order #${id}`} />
   const [searchParams] = useSearchParams()
   const returningFromPayment = searchParams.has('session_id')
   const { lines, dispatch } = useCart()
@@ -61,6 +63,7 @@ function OrderView() {
   if (order.error instanceof ApiError && order.error.status === 404) {
     return (
       <Page>
+        {title}
         <Message title="Order not found" text="This order does not exist or belongs to another account." />
       </Page>
     )
@@ -68,6 +71,7 @@ function OrderView() {
   if (order.isError) {
     return (
       <Page>
+        {title}
         <div className="bg-purple-dark p-8 text-center">
           <p>The order could not be loaded.</p>
           <Button className="mt-3" onClick={() => order.refetch()}>
@@ -80,6 +84,7 @@ function OrderView() {
   if (!order.data) {
     return (
       <Page>
+        {title}
         <div className="h-[200px] animate-pulse bg-purple-dark" aria-hidden="true" />
       </Page>
     )

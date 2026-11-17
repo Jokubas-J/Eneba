@@ -86,6 +86,15 @@
     font-size: 16px;
     line-height: 24px;
   }
+
+  /* Keyboard focus, everywhere. The browser's default ring is thin and dark, almost
+     invisible on our purples (found in the day-6 polish pass). :focus-visible shows
+     it for keyboard use only, not after a mouse click. Components with their own
+     focus style (search box, checkbox) override this. */
+  :focus-visible {
+    outline: 2px solid var(--color-yellow);
+    outline-offset: 2px;
+  }
 }
 
 @layer components {

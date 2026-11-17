@@ -5,6 +5,7 @@ import { ApiError, fetchProduct, type ProductCard as Card, type ProductDetail } 
 import { Button } from '../components/Button.tsx'
 import { CalendarIcon, GlobeIcon, HomeIcon, KeyIcon, MonitorIcon } from '../components/icons.tsx'
 import { Page } from '../components/Page.tsx'
+import { PageTitle } from '../components/PageTitle.tsx'
 import { ProductCard } from '../components/ProductCard.tsx'
 import { RemoteImage } from '../components/RemoteImage.tsx'
 import { BuyBox } from '../product/BuyBox.tsx'
@@ -64,6 +65,7 @@ function ProductView({ product }: { product: ProductDetail }) {
 
   return (
     <>
+      <PageTitle title={product.name} />
       <Breadcrumb product={product} />
 
       {/* Measured: 1220px main column + 30px gap + 350px buy box. As a grid, the buy

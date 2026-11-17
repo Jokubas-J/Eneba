@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router'
 import { type Facets, fetchProducts } from '../api.ts'
 import { Button } from '../components/Button.tsx'
 import { Page } from '../components/Page.tsx'
+import { PageTitle } from '../components/PageTitle.tsx'
 import { ProductCard, ProductCardSkeleton } from '../components/ProductCard.tsx'
 import { centsToEuros } from '../money.ts'
 import { FilterSidebar } from '../store/FilterSidebar.tsx'
@@ -64,6 +65,7 @@ export function StorePage() {
 
   return (
     <Page>
+      <PageTitle title={filters.text ? `Results for “${filters.text}”` : 'Store'} />
       <h1 className="text-heading font-bold">{filters.text ? `Results for “${filters.text}”` : 'Store'}</h1>
 
       <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-start">
