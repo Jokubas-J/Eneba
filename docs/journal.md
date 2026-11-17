@@ -100,3 +100,46 @@ commit history and in `ai-logs/`.
   cancelling helps (search dropdown).
 - One commit (`aef73e1`) does not build on its own: two files it imports went into the next
   commit. Not rewritten, because history is never rewritten in this repo.
+
+## 2026-11-17 (continued) — PLAN day 5 (checkout and key delivery)
+
+**Decided**
+- Keys are reserved when the payment session is created, not assigned in the webhook: the
+  buyer learns "sold out" before paying instead of after. Reservation = 30 minutes = the Stripe
+  session's expiry; released by Stripe's `checkout.session.expired` webhook or by a clean-up job
+  every minute (5 minutes of grace). Full comparison in `docs/checkout.md`.
+- Neon Free: do not ping the database to keep it awake. Free has 100 CU-hours per project per
+  month, shared by all branches; scale-to-zero after 5 minutes cannot be disabled; even 0.25 CU
+  awake all month is about 182 CU-hours, and when the allowance runs out compute is suspended
+  until next month. `/api/healthz` stays database-free so the Render pinger never wakes Neon.
+- Stripe Checkout accepts cards only: Stripe also offered bank-redirect methods whose result can
+  arrive after the reservation has expired.
+
+**Built**
+- `internal/orders`: checkout transaction (prices from the database, keys reserved with
+  `FOR UPDATE SKIP LOCKED`), idempotent fulfilment (`UPDATE … WHERE status = 'pending'`),
+  webhook events stored in `payment_events` in the same transaction as their effect, simulated
+  and Stripe providers behind one interface (`PAYMENT_PROVIDER`). Migration 00009.
+- API: checkout, orders, confirm, simulated pay, Stripe webhook with signature check. Only
+  `sk_test_` keys are accepted.
+- Frontend: checkout button, simulated payment page, order page with keys and copy buttons
+  (polls `/confirm` after returning from Stripe), order history, "My orders" link.
+
+**Verified**
+- Tests on the Neon `test` branch: 20 buyers racing for the last key (1 wins, 19 get out of
+  stock), duplicate and concurrent fulfilment, expiry via webhook and via the clean-up job,
+  payment after expiry, browser-sent prices ignored, owner-only access, provider failure,
+  forged / old / tampered webhooks.
+- Locally in a browser: the simulated flow and the Stripe test-mode flow.
+- Live (2026-11-17): on `https://eneba-seven.vercel.app` a new account bought one key with card
+  4242 4242 4242 4242; Stripe returned to `/orders/1`, which showed the key within about 4
+  seconds; the cart emptied; history listed the paid order. Stripe API: the webhook endpoint
+  `https://eneba-2753.onrender.com/api/webhooks/stripe` is enabled for the two events, and the
+  `checkout.session.completed` event for that order has `pending_webhooks: 0` (delivered with a
+  2xx). This created a test account `stripe-live-check-<timestamp>@example.com` in production.
+
+**Mistakes caught**
+- The test fixture emptied `users` with `TRUNCATE … CASCADE` after loading the catalog; the
+  cascade reaches orders → order items → license keys and deleted every key. It now runs first.
+- I used a stripe-go field name (`PaymentMethodTypes`) that this version does not have; the
+  compiler caught it. The right field is `AllowedPaymentMethodTypes`.
