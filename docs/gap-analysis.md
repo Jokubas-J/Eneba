@@ -15,7 +15,7 @@ is `docs/screenshots/`.
 | 1 | **Homepage** | Banner mosaic, category icon rail, 6–8 product carousels, category tiles | A test page that shows "Backend status: ok" | Very high — first thing anyone sees | L | PLAN day 6 (deep C). Could be moved earlier. |
 | 2 | **Product page** | Cover, title, info tiles, offer list, buy box, description, reviews, requirements | "Page not found" for every product link | Very high — every card click | L | PLAN day 4 (deep B). |
 | 3 | **Search dropdown** | Opens while typing: 5 query suggestions, 6 product rows (cover, "Digital good" pill, name, "From ~~€x~~ €y"), "Show all N results"; ARIA combobox/listbox | None; Enter goes to the store | High — the box is on every page and evaluators type into it | M | **Built in this step**, see §3. |
-| 4 | **Categories menu** | "☰ Categories" opens a left drawer: All offers · Games (Platforms, Popular genres, Niche genres, Discover by price, Upcoming, DLCs…) · Gaming eCards · eGift Cards · E-money · PSN · Xbox · … | "☰ All games" is a plain link | High — first item of the nav strip | M | Proposal in §2, waiting for the author's decision. |
+| 4 | **Categories menu** | "☰ Categories" opens a left drawer: All offers · Games (Platforms, Popular genres, Niche genres, Discover by price, Upcoming, DLCs…) · Gaming eCards · eGift Cards · E-money · PSN · Xbox · … | "☰ All games" is a plain link | High — first item of the nav strip | M | **Built** (option B, 2026-11-17): `GET /api/menu`, drawer + nav strip from `menu_sections` / `menu_links`, icons by key. |
 | 5 | **Common search spellings** | `gta 5` → 229 results, suggestions "gta 5", "gta v" | `gta 5` → **0 results** (name says "V") | High for anyone testing search | S–M | **Built in this step** (synonyms). |
 | 6 | **Nav strip content** | Categories, Cheap Games, Software, eGift Cards, Eneba Gift Cards, FM27, Giveaway, promo pill "GTA VI" | All games, Steam, GOG.com, Epic Games, Xbox Live, PSN, Cheapest first | Medium — looks like Eneba already, the labels differ | S | Comes with the Categories menu (same data). |
 | 7 | **Store sidebar extras** | Collapsible groups (chevron), "Country" select, "Operating system" group, search box inside long groups, "Show all" | Fixed open groups; no Country / OS | Medium | S–M | Collapsing: S, day 6. Country/OS: see §4. |
@@ -30,7 +30,15 @@ What already matches closely: colors, fonts, the header layout and search box si
 strip, the store's two-column layout, filter groups with live counts, active-filter chips with
 "Clear all", "Results found", typo-tolerant results.
 
-## 2. Categories menu — proposal (not built)
+## 2. Categories menu — built as option B (2026-11-17)
+
+Built as proposed below, plus: a section can also be a single link (`kind = 'link'`, "All games"), a
+`placement` column puts sections in the drawer or the nav strip (the strip is no longer hardcoded
+in the frontend), and every section, link, genre, platform and region has an icon key
+(`taxonomy_icons`) drawn by `ContentIcon.tsx`. The price links have no counts (only generated
+sections do). Tables and data: migration 00013. Tests: `backend/internal/menu/menu_test.go`.
+
+### The original proposal
 
 ### What Eneba's menu contains
 
@@ -119,7 +127,7 @@ See `docs/search.md` for the full design. In short:
 
 ## 5. Suggested order after this step
 
-1. Categories menu (§2) — once the author picks A or B.
+1. ~~Categories menu (§2)~~ — built (option B).
 2. Product page with offer comparison, cart, auth (PLAN day 4) — the biggest visible gap after
    the homepage, and the start of deep feature B.
 3. Homepage (PLAN day 6) — could be pulled forward because it is the most visible gap; its block

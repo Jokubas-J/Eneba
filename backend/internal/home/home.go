@@ -124,20 +124,22 @@ func (s *Service) NewReleases(ctx context.Context) ([]catalog.ProductCard, error
 
 // Category is a genre tile with the number of products that can be bought now.
 type Category struct {
-	Slug  string `json:"slug"`
-	Name  string `json:"name"`
-	Count int    `json:"count"`
+	Slug  string  `json:"slug"`
+	Name  string  `json:"name"`
+	Count int     `json:"count"`
+	Icon  *string `json:"icon"` // icon key from taxonomy_icons; null = the frontend's default
 }
 
 // Categories returns the genres that have something in stock, largest first.
 func (s *Service) Categories(ctx context.Context) ([]Category, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT g.slug, g.name, count(*)::int
+		SELECT g.slug, g.name, count(*)::int, ti.icon
 		FROM genres g
 		JOIN product_genres pg ON pg.genre_id = g.id
 		JOIN product_listing l ON l.id = pg.product_id
+		LEFT JOIN taxonomy_icons ti ON ti.kind = 'genre' AND ti.slug = g.slug
 		WHERE l.offer_count > 0
-		GROUP BY g.id
+		GROUP BY g.id, ti.icon
 		ORDER BY count(*) DESC, g.name`)
 	if err != nil {
 		return nil, fmt.Errorf("load categories: %w", err)

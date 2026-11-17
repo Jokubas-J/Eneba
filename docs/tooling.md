@@ -97,6 +97,37 @@ Sources: [downshift on npm](https://npmjs.com/downshift),
 [a 2026 comparison of select libraries](https://www.pistack.xyz/posts/2026-08-24-react-select-libraries-react-select-downshift-react-aria-comparison/);
 bundle sizes measured by me on 2026-11-17.
 
+### Icons: lucide-react (chosen)
+
+Decided 2026-11-17, at the author's request: category tiles and menu entries get an icon **key**
+stored in the database (`taxonomy_icons`, `menu_sections.icon`, `menu_links.icon`); the frontend
+turns keys into drawings in one place (`frontend/src/components/ContentIcon.tsx`), and an
+unknown key draws a default icon. So *which* icon a genre gets is content (backend), *how* an
+icon looks is presentation (frontend).
+
+| | lucide-react (chosen) | Hand-drawn SVGs in `icons.tsx` | Heroicons / react-icons |
+|---|---|---|---|
+| Covers genres (swords, compass, crown, puzzle…) | Yes, ~1600 icons, one consistent line style | Each icon drawn and maintained by us | Heroicons: ~300, few game/genre motifs. react-icons: many sets mixed, uneven styles |
+| Matches our existing icons | Thin outline icons, like the ones already in `icons.tsx` | Yes | Heroicons yes; react-icons depends on the set |
+| Keys | Stable kebab-case names (`car-front`) that we can store as data | Our own names | Per-set names |
+| Bundle | Tree-shaken: only imported icons are shipped. Our 21 icons + lucide's shared code: **≈ 5.6 KB gzip** (measured from the unminified module files, so an upper bound) | Smallest | react-icons pulls whole sets unless imported carefully |
+| Licence / upkeep | ISC, actively maintained (v1.74), React 19 supported | — | MIT |
+
+**Chosen: lucide-react**, imported icon by icon. Not used: lucide's `<DynamicIcon name=…>`, which
+can draw any icon by name, because it brings the import map for all ~1600 icons with it; an explicit
+map of the 21 we use keeps the bundle small and makes the set of allowed keys visible in one file.
+Adding an icon = one import + one line in `ContentIcon.tsx` + the key in the database.
+
+Sources: [lucide.dev](https://lucide.dev/guide/packages/lucide-react), npm `lucide-react` (licence and
+peer dependencies checked 2026-11-17).
+
+### Component tests: React Testing Library + jsdom
+
+Added 2026-11-17 (dev dependencies only) for the homepage test planned in PLAN.md: rendering the
+page proves that an unknown block type is skipped and a failing block fails alone, which plain
+function tests cannot show. jsdom is the browser-like DOM the tests render into; only files that
+start with `// @vitest-environment jsdom` use it, the rest stay plain and fast.
+
 ### Test runner: Vitest
 
 The Vite project's own test runner: same config and TypeScript handling as the build, nothing

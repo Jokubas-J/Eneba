@@ -313,6 +313,7 @@ export type Category = {
   slug: string
   name: string
   count: number
+  icon: string | null // icon key; see components/ContentIcon.tsx
 }
 
 export async function fetchHomeBlocks(): Promise<HomeBlock[]> {
@@ -327,4 +328,27 @@ export async function fetchBlockItems<T>(source: string): Promise<T[]> {
     throw new Error(`Unexpected block source ${source}`)
   }
   return (await getJSON<{ items: T[] }>(source)).items
+}
+
+// --- Site menu (mirrors backend/internal/menu) ---
+
+export type MenuLink = {
+  label: string
+  url: string
+  icon: string | null
+  count: number | null // products in stock, for generated links
+}
+
+export type MenuSection = {
+  id: number
+  title: string
+  kind: 'link' | 'links' | 'platforms' | 'genres' | 'regions'
+  placement: 'drawer' | 'strip'
+  url: string | null // set for kind "link"
+  icon: string | null
+  links: MenuLink[]
+}
+
+export async function fetchMenu(): Promise<MenuSection[]> {
+  return (await getJSON<{ items: MenuSection[] }>('/api/menu')).items
 }

@@ -169,9 +169,21 @@ func TestCategories(t *testing.T) {
 		t.Fatal(err)
 	}
 	// action: famous, niche, upcoming (soldout does not count) = 3; indie: niche, middle = 2.
-	want := []home.Category{{Slug: "action", Name: "Action", Count: 3}, {Slug: "indie", Name: "Indie", Count: 2}}
-	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
-		t.Errorf("got %+v, want %+v", got, want)
+	// Icons come from taxonomy_icons (migration 00013), matched by slug.
+	type row struct {
+		slug, name string
+		count      int
+		icon       string
+	}
+	want := []row{{"action", "Action", 3, "swords"}, {"indie", "Indie", 2, "sparkles"}}
+	if len(got) != len(want) {
+		t.Fatalf("got %+v, want %+v", got, want)
+	}
+	for i, w := range want {
+		g := got[i]
+		if g.Slug != w.slug || g.Name != w.name || g.Count != w.count || g.Icon == nil || *g.Icon != w.icon {
+			t.Errorf("category %d = %+v (icon %v), want %+v", i, g, g.Icon, w)
+		}
 	}
 }
 

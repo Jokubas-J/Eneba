@@ -6,6 +6,7 @@ import (
 
 	"github.com/Jokubas-J/Eneba/backend/internal/catalog"
 	"github.com/Jokubas-J/Eneba/backend/internal/home"
+	"github.com/Jokubas-J/Eneba/backend/internal/menu"
 )
 
 // Home is what the homepage handlers need: the layout and one method per block.
@@ -48,6 +49,11 @@ func serveItems[T any](load func(context.Context) ([]T, error)) http.HandlerFunc
 	}
 }
 
+// Menu is what GET /api/menu needs.
+type Menu interface {
+	Menu(ctx context.Context) ([]menu.Section, error)
+}
+
 // registerHome wraps each method in a closure instead of passing h.Blocks directly:
 // taking a method value from a nil interface panics at once in Go, and tests of
 // other routes build the router without a Home. The closure looks h up per request.
@@ -58,4 +64,10 @@ func registerHome(mux *http.ServeMux, h Home) {
 	mux.HandleFunc("GET /api/home/deals", serveItems(func(ctx context.Context) ([]catalog.ProductCard, error) { return h.Deals(ctx) }))
 	mux.HandleFunc("GET /api/home/new-releases", serveItems(func(ctx context.Context) ([]catalog.ProductCard, error) { return h.NewReleases(ctx) }))
 	mux.HandleFunc("GET /api/home/categories", serveItems(func(ctx context.Context) ([]home.Category, error) { return h.Categories(ctx) }))
+}
+
+// registerMenu serves the site menu. It changes as rarely as the homepage and
+// uses the same one-minute cache and {"items": [...]} shape.
+func registerMenu(mux *http.ServeMux, m Menu) {
+	mux.HandleFunc("GET /api/menu", serveItems(func(ctx context.Context) ([]menu.Section, error) { return m.Menu(ctx) }))
 }

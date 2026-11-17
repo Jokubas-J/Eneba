@@ -11,6 +11,7 @@ type Dependencies struct {
 	Accounts Accounts
 	Orders   Orders
 	Home     Home
+	Menu     Menu
 	// StripeWebhookSecret verifies Stripe webhooks; empty = webhooks are refused.
 	StripeWebhookSecret string
 	// Environment is APP_ENV. The webhook ignores Stripe events of sessions created
@@ -40,6 +41,7 @@ func NewRouter(deps Dependencies) http.Handler {
 	mux.HandleFunc("GET /api/search/suggest", handleSuggest(deps.Catalog))
 	mux.HandleFunc("POST /api/cart/validate", handleValidateCart(deps.Catalog))
 	registerHome(mux, deps.Home)
+	registerMenu(mux, deps.Menu)
 
 	mux.HandleFunc("POST /api/auth/register", accounts.register)
 	mux.HandleFunc("POST /api/auth/login", accounts.login)

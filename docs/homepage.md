@@ -28,7 +28,7 @@ the frontend knows only how to draw a few block *types*.
 | Best sellers | `/api/home/best-sellers` | `order_items` of paid orders + `products.popularity` | keys sold in the last 30 days, then Steam recommendation count; in stock only |
 | Biggest discounts | `/api/home/deals` | `product_listing` (cheapest in-stock offer) | largest % below the reference price |
 | New releases | `/api/home/new-releases` | `products.release_date` | newest first; future dates (pre-orders) left out |
-| Categories | `/api/home/categories` | `genres` + live counts | genres with something in stock, largest first |
+| Categories | `/api/home/categories` | `genres` + live counts + `taxonomy_icons` | genres with something in stock, largest first, each with its icon key |
 
 All carousels read the same `product_listing` view as the store, so a card's "From €X" is the
 same on every page. Every endpoint answers `{"items": [...]}` (never `null`) with
@@ -51,6 +51,9 @@ same on every page. Every endpoint answers `{"items": [...]}` (never `null`) wit
   orders but not `home_blocks` or `banners`, so a re-seed keeps the homepage. Changing the
   homepage is an `UPDATE` on those tables, not a deploy.
 
+Icons: a genre's icon is a key in `taxonomy_icons` (by slug, so it survives a re-seed); the
+frontend draws it with `ContentIcon.tsx` and falls back to a default icon for an unknown key.
+
 ## Failure cases
 
 | Case | Handling | Test |
@@ -61,3 +64,4 @@ same on every page. Every endpoint answers `{"items": [...]}` (never `null`) wit
 | A product sells out | it leaves the carousels within a minute (cache) | `TestBestSellers`, `TestDeals` |
 | Unpaid, expired or old orders | do not count as sales | `TestBestSellers` |
 | A banner image fails to load | placeholder instead of a broken image (`RemoteImage`) | — |
+| Unknown or missing icon key | default icon | `ContentIcon.test.tsx` |

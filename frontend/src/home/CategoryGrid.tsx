@@ -2,15 +2,14 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 import type { Category } from '../api.ts'
 import { Button } from '../components/Button.tsx'
-import { MonitorIcon } from '../components/icons.tsx'
+import { ContentIcon } from '../components/ContentIcon.tsx'
 
 // Rows of 7 tiles, as on eneba.com (screenshot 06); "Load more" shows the rest.
 const firstRow = 7
 
 // Square genre tiles (screenshot 06): live count on top, icon, name. Each tile opens
-// the store filtered by that genre. Eneba draws a different icon per genre; we use
-// one neutral icon for all, rather than hardcoding an icon per genre name in the
-// frontend (the genres themselves come from the database).
+// the store filtered by that genre. The icon key comes with the genre from the API
+// (taxonomy_icons); a genre without one gets the default icon.
 export function CategoryGrid({ items }: { items: Category[] }) {
   const [showAll, setShowAll] = useState(false)
   const visible = showAll ? items : items.slice(0, firstRow)
@@ -24,7 +23,7 @@ export function CategoryGrid({ items }: { items: Category[] }) {
               className="flex h-[135px] flex-col items-center justify-between bg-purple-light p-4 shadow-tile hover:brightness-110"
             >
               <span className="text-sm font-extrabold">{category.count}</span>
-              <MonitorIcon className="size-8" />
+              <ContentIcon name={category.icon} className="size-9" />
               <span className="text-sm font-extrabold">{category.name}</span>
             </Link>
           </li>

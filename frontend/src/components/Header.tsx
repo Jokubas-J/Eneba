@@ -1,19 +1,12 @@
+import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router'
+import { fetchMenu } from '../api.ts'
 import { useCurrentUser, useLogout } from '../auth/useAuth.ts'
 import { useCart } from '../cart/useCart.ts'
 import { SearchBox } from '../search/SearchBox.tsx'
+import { CategoriesDrawer } from './CategoriesDrawer.tsx'
 import { CartIcon, MenuIcon, UserIcon } from './icons.tsx'
-
-// Navigation is part of the page frame, not homepage content, so it is defined
-// here. The links are store filters; the store reads them from the URL.
-const navLinks = [
-  { label: 'Steam', to: '/store?platform=steam' },
-  { label: 'GOG.com', to: '/store?platform=gog' },
-  { label: 'Epic Games', to: '/store?platform=epic-games' },
-  { label: 'Xbox Live', to: '/store?platform=xbox-live' },
-  { label: 'PSN', to: '/store?platform=psn' },
-  { label: 'Cheapest first', to: '/store?sort=price_asc' },
-]
 
 // Header as measured on eneba.com (design-reference.md §5): a 57px row with logo,
 // search and account links, then a 50px darker navigation strip.
@@ -68,6 +61,11 @@ export function Header() {
   // keeps the two in step, as on eneba.com.
   const [searchParams] = useSearchParams()
   const currentText = searchParams.get('text') ?? ''
+  // The menu (drawer sections and nav strip links) comes from GET /api/menu.
+  const menu = useQuery({ queryKey: ['menu'], queryFn: fetchMenu })
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const stripLinks = menu.data?.filter((s) => s.placement === 'strip').flatMap((s) => s.links) ?? []
+  const drawerSections = menu.data?.filter((s) => s.placement === 'drawer') ?? []
 
   return (
     <header>
@@ -106,20 +104,34 @@ export function Header() {
       <nav aria-label="Main" className="bg-overlay-nav">
         <ul className="mx-auto flex h-10 max-w-page items-center gap-2 overflow-x-auto overflow-y-hidden px-2 [scrollbar-width:none] leading-[16px] font-semibold whitespace-nowrap text-text-nav">
           <li>
-            <Link to="/store" className="flex items-center gap-2 p-2 hover:text-white">
+            {/* The button itself is page chrome; what the drawer lists is data. */}
+            <button
+              type="button"
+              onClick={() => setDrawerOpen(true)}
+              aria-haspopup="dialog"
+              className="flex items-center gap-2 p-2 font-semibold hover:text-white"
+            >
               <MenuIcon className="size-5" />
-              All games
-            </Link>
+              Categories
+            </button>
           </li>
-          {navLinks.map((link) => (
-            <li key={link.to}>
-              <Link to={link.to} className="block p-2 hover:text-white">
+          {stripLinks.map((link) => (
+            <li key={link.url}>
+              <Link to={link.url} className="block p-2 hover:text-white">
                 {link.label}
               </Link>
             </li>
           ))}
         </ul>
       </nav>
+      {drawerOpen && (
+        <CategoriesDrawer
+          sections={drawerSections}
+          state={menu.isError ? 'error' : menu.data ? 'ready' : 'loading'}
+          onRetry={() => menu.refetch()}
+          onClose={() => setDrawerOpen(false)}
+        />
+      )}
     </header>
   )
 }
