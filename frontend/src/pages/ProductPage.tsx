@@ -198,13 +198,15 @@ function OtherVersions({ versions }: { versions: Card[] }) {
 
 function ProductSkeleton() {
   return (
-    <div className="animate-pulse" aria-hidden="true">
-      <div className="mb-6 h-3 w-1/3 bg-purple-dark" />
-      <div className="flex gap-6">
-        <div className="aspect-[224/316] w-[224px] bg-purple-dark" />
+    <div aria-hidden="true">
+      <div className="skeleton mb-6 h-3 w-1/3" />
+      <div className="flex flex-col gap-6 md:flex-row">
+        <div className="skeleton aspect-[224/316] w-[224px]" />
         <div className="flex-1">
-          <div className="h-6 w-2/3 bg-purple-dark" />
-          <div className="mt-6 h-24 bg-purple-dark" />
+          <div className="skeleton h-6 w-2/3" />
+          <div className="skeleton mt-3 h-4 w-1/3" />
+          <div className="skeleton mt-6 h-24" />
+          <div className="skeleton mt-4 h-[109px]" />
         </div>
       </div>
     </div>

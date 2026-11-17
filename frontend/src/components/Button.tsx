@@ -1,5 +1,6 @@
 import type { ComponentProps } from 'react'
 import { Link } from 'react-router'
+import { Spinner } from './Spinner.tsx'
 
 // The two button looks of the design (design-reference.md §5): yellow with black
 // text for the main action, a white outline for secondary actions. Both are 35px
@@ -7,7 +8,8 @@ import { Link } from 'react-router'
 type Variant = 'primary' | 'outline'
 
 const base =
-  'inline-flex h-7 items-center justify-center px-2 text-button font-extrabold whitespace-nowrap ' +
+  'inline-flex h-7 items-center justify-center gap-2 px-2 text-button font-extrabold whitespace-nowrap ' +
+  'transition-[filter,background-color,color,transform] duration-150 active:not-disabled:scale-[0.98] ' +
   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow ' +
   'disabled:cursor-not-allowed'
 
@@ -29,10 +31,17 @@ function classes(variant: Variant, extra?: string) {
 
 // ComponentProps<'button'> is "every attribute a <button> accepts" (onClick, type,
 // disabled...), so the component does not have to list them one by one.
-type ButtonProps = ComponentProps<'button'> & { variant?: Variant }
+// loading: the action is running. The button shows a spinner and cannot be pressed
+// again (so a slow request is not sent twice); aria-busy tells screen readers.
+type ButtonProps = ComponentProps<'button'> & { variant?: Variant; loading?: boolean }
 
-export function Button({ variant = 'primary', className, type = 'button', ...rest }: ButtonProps) {
-  return <button type={type} className={classes(variant, className)} {...rest} />
+export function Button({ variant = 'primary', className, type = 'button', loading = false, disabled, children, ...rest }: ButtonProps) {
+  return (
+    <button type={type} className={classes(variant, className)} disabled={disabled || loading} aria-busy={loading || undefined} {...rest}>
+      {loading && <Spinner />}
+      {children}
+    </button>
+  )
 }
 
 // The same look for navigation. A link and a button are different things to the

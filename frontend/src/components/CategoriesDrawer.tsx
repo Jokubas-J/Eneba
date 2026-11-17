@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import type { MenuSection } from '../api.ts'
 import { ContentIcon } from './ContentIcon.tsx'
 import { ChevronIcon, CloseIcon } from './icons.tsx'
+import { useAnimatedClose } from './useAnimatedClose.ts'
 
 // The "Categories" drawer (docs/gap-analysis.md §2): a panel from the left with the
 // menu sections; a group's links appear in a second column on wide screens and open
@@ -10,6 +11,7 @@ import { ChevronIcon, CloseIcon } from './icons.tsx'
 //
 // Built on <dialog> + showModal(), like the other dialogs: the browser keeps focus
 // inside, Escape closes it, and focus returns to the "Categories" button afterwards.
+// It slides in from the left and back out (.drawer-dialog in index.css).
 export function CategoriesDrawer({
   sections,
   state,
@@ -26,6 +28,11 @@ export function CategoriesDrawer({
   const [activeId, setActiveId] = useState<number | null>(null)
   // The open group: chosen by tap (phones) or by pointing / tap (wide screens).
   const active = groups.find((g) => g.id === activeId) ?? null
+  // Every way of closing (X, backdrop, Escape, following a link) slides it out first,
+  // then calls dialog.close(): that (not just removing the element) is what makes the
+  // browser put focus back on the "Categories" button. close() fires the dialog's
+  // close event, which calls onClose.
+  const { closing, requestClose } = useAnimatedClose(() => dialogRef.current?.close())
 
   useEffect(() => {
     // See AddedToCartDialog for why there is no close() in a clean-up.
@@ -37,17 +44,23 @@ export function CategoriesDrawer({
     <dialog
       ref={dialogRef}
       aria-label="Categories"
+      data-closing={closing || undefined}
       onClose={onClose}
+      // Escape: stop the browser closing it at once, and slide it out instead.
+      onCancel={(event) => {
+        event.preventDefault()
+        requestClose()
+      }}
       onClick={(event) => {
         // A click on the dimmed backdrop (the dialog element itself) closes it.
-        if (event.target === event.currentTarget) onClose()
+        if (event.target === event.currentTarget) requestClose()
       }}
-      className="m-0 h-dvh max-h-none w-full max-w-[640px] bg-purple-dark p-0 text-white shadow-panel backdrop:bg-black/60"
+      className="drawer-dialog m-0 h-dvh max-h-none w-full max-w-[640px] bg-purple-dark p-0 text-white shadow-panel"
     >
       <div className="flex h-full flex-col">
         <div className="flex items-center justify-between border-b border-overlay-row px-4 py-3">
           <p className="text-lg font-extrabold">Categories</p>
-          <button type="button" onClick={onClose} aria-label="Close categories" className="p-1 hover:text-yellow">
+          <button type="button" onClick={requestClose} aria-label="Close categories" className="p-1 hover:text-yellow">
             <CloseIcon className="size-5" />
           </button>
         </div>
@@ -60,7 +73,16 @@ export function CategoriesDrawer({
             </button>
           </div>
         )}
-        {state === 'loading' && <div className="m-4 h-[200px] animate-pulse bg-overlay-item" aria-hidden="true" />}
+        {state === 'loading' && (
+          <ul className="py-2 md:w-[260px]" aria-hidden="true">
+            {Array.from({ length: 6 }, (_, i) => (
+              <li key={i} className="flex items-center gap-3 px-4 py-3">
+                <div className="skeleton size-5 shrink-0" />
+                <div className="skeleton h-4 flex-1" />
+              </li>
+            ))}
+          </ul>
+        )}
 
         {state === 'ready' && (
           <div className="flex min-h-0 flex-1">
@@ -68,7 +90,7 @@ export function CategoriesDrawer({
               {sections.map((section) =>
                 section.kind === 'link' && section.url ? (
                   <li key={section.id}>
-                    <Link to={section.url} onClick={onClose} className={rowClass(false)}>
+                    <Link to={section.url} onClick={requestClose} className={rowClass(false)}>
                       <ContentIcon name={section.icon} className="size-5 shrink-0" />
                       <span className="flex-1">{section.title}</span>
                     </Link>
@@ -87,12 +109,18 @@ export function CategoriesDrawer({
                     >
                       <ContentIcon name={section.icon} className="size-5 shrink-0" />
                       <span className="flex-1 text-left">{section.title}</span>
-                      <ChevronIcon direction="right" className="size-4 shrink-0" />
+                      {/* Turns to point down when the group is open (phones). */}
+                      <ChevronIcon
+                        direction="right"
+                        className={`size-4 shrink-0 transition-transform duration-200 ${
+                          active?.id === section.id ? 'max-md:rotate-90' : ''
+                        }`}
+                      />
                     </button>
                     {/* Phones: the group's links open right under it. */}
                     {active?.id === section.id && (
-                      <div className="pb-2 pl-6 md:hidden">
-                        <LinkList section={section} onNavigate={onClose} />
+                      <div className="animate-rise-in pb-2 pl-6 md:hidden">
+                        <LinkList section={section} onNavigate={requestClose} />
                       </div>
                     )}
                   </li>
@@ -102,10 +130,11 @@ export function CategoriesDrawer({
             {/* Wide screens: the open group's links in a second column. */}
             <div className="hidden flex-1 overflow-y-auto p-2 md:block">
               {active ? (
-                <>
+                // key: switching groups re-mounts this, so the new list fades in.
+                <div key={active.id} className="animate-fade-in">
                   <p className="px-2 pt-2 pb-1 text-xs font-extrabold text-text-muted uppercase">{active.title}</p>
-                  <LinkList section={active} onNavigate={onClose} />
-                </>
+                  <LinkList section={active} onNavigate={requestClose} />
+                </div>
               ) : (
                 <p className="p-2 text-sm text-text-muted">Point at a group to see what is in it.</p>
               )}
@@ -118,7 +147,7 @@ export function CategoriesDrawer({
 }
 
 function rowClass(open: boolean) {
-  return `flex w-full items-center gap-3 px-4 py-3 font-semibold hover:bg-overlay-item ${open ? 'bg-overlay-item text-yellow' : ''}`
+  return `flex w-full items-center gap-3 px-4 py-3 font-semibold transition-colors duration-150 hover:bg-overlay-item ${open ? 'bg-overlay-item text-yellow' : ''}`
 }
 
 function LinkList({ section, onNavigate }: { section: MenuSection; onNavigate: () => void }) {
@@ -130,7 +159,7 @@ function LinkList({ section, onNavigate }: { section: MenuSection; onNavigate: (
           <Link
             to={link.url}
             onClick={onNavigate}
-            className="flex items-center gap-3 px-2 py-2 text-sm hover:bg-overlay-item hover:text-yellow"
+            className="flex items-center gap-3 px-2 py-2 text-sm transition-colors duration-150 hover:bg-overlay-item hover:text-yellow"
           >
             <ContentIcon name={link.icon} className="size-4 shrink-0 text-text-muted" />
             <span className="flex-1">{link.label}</span>

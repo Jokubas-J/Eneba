@@ -83,7 +83,7 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
           ))}
         </div>
 
-        <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="p-4">
+        <div key={tab} id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="animate-fade-in p-4">
           {tab === 'description' ? (
             <ReadMore>
               <h3 className="mb-3 font-extrabold">{product.name}</h3>

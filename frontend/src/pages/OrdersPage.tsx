@@ -37,7 +37,18 @@ function OrdersList() {
             </Button>
           </div>
         ) : !orders.data ? (
-          <div className="h-[120px] animate-pulse bg-purple-dark" aria-hidden="true" />
+          <ul className="flex flex-col gap-2" aria-hidden="true">
+            {[0, 1, 2].map((i) => (
+              <li key={i} className="flex items-center gap-4 bg-overlay-row p-4">
+                <div className="flex-1">
+                  <div className="skeleton h-4 w-1/4" />
+                  <div className="skeleton mt-2 h-3 w-1/2" />
+                </div>
+                <div className="skeleton h-5 w-[90px]" />
+                <div className="skeleton h-5 w-[90px]" />
+              </li>
+            ))}
+          </ul>
         ) : orders.data.length === 0 ? (
           <div className="flex flex-col items-center bg-purple-dark py-8 text-center">
             <InfoIcon className="size-8 text-text-nav" />
@@ -52,7 +63,7 @@ function OrdersList() {
               const status = statusStyle[order.status]
               const keys = order.items.reduce((sum, item) => sum + item.quantity, 0)
               return (
-                <li key={order.id}>
+                <li key={order.id} className="animate-fade-in">
                   <Link
                     to={`/orders/${order.id}`}
                     className="flex flex-wrap items-center gap-4 bg-overlay-row p-4 hover:bg-purple-dark"

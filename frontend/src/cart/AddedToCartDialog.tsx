@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router'
 import { Button } from '../components/Button.tsx'
 import { CartIcon, VerifiedIcon } from '../components/icons.tsx'
+import { useAnimatedClose } from '../components/useAnimatedClose.ts'
 
 // "Added to cart" confirmation (design-reference.md §5, screenshot 13): a centred
 // panel over the dimmed page with "Continue shopping" and "View cart". Built on
@@ -10,6 +11,9 @@ import { CartIcon, VerifiedIcon } from '../components/icons.tsx'
 export function AddedToCartDialog({ itemCount, onClose }: { itemCount: number; onClose: () => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const navigate = useNavigate()
+  // It pops in and fades back out (.pop-dialog in index.css).
+  // close() at the end (not just removal) returns focus to where it was before.
+  const { closing, requestClose } = useAnimatedClose(() => dialogRef.current?.close(), 200)
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -25,11 +29,16 @@ export function AddedToCartDialog({ itemCount, onClose }: { itemCount: number; o
     <dialog
       ref={dialogRef}
       aria-labelledby="added-title"
+      data-closing={closing || undefined}
       onClose={onClose}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose()
+      onCancel={(event) => {
+        event.preventDefault()
+        requestClose()
       }}
-      className="m-auto w-[min(470px,calc(100vw-40px))] bg-purple-light p-8 text-center text-white shadow-panel backdrop:bg-black/60"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) requestClose()
+      }}
+      className="pop-dialog m-auto w-[min(470px,calc(100vw-40px))] bg-purple-light p-8 text-center text-white shadow-panel"
     >
       <span className="relative mx-auto block size-16">
         <CartIcon className="size-16" />
@@ -42,7 +51,7 @@ export function AddedToCartDialog({ itemCount, onClose }: { itemCount: number; o
         You have <strong>{itemCount === 1 ? '1 item' : `${itemCount} items`}</strong> in your cart
       </p>
       <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
-        <Button autoFocus onClick={onClose} className="sm:w-[190px]">
+        <Button autoFocus onClick={requestClose} className="sm:w-[190px]">
           Continue shopping
         </Button>
         <Button

@@ -55,7 +55,7 @@ function SimulatedPayment() {
               <span className="text-buybox font-extrabold">{formatPrice(data.totalCents)}</span>
             </p>
             {data.status === 'pending' ? (
-              <Button className="mt-6 w-full" disabled={pay.isPending} onClick={() => pay.mutate()}>
+              <Button className="mt-6 w-full" loading={pay.isPending} onClick={() => pay.mutate()}>
                 {pay.isPending ? 'Paying…' : `Pay ${formatPrice(data.totalCents)}`}
               </Button>
             ) : (

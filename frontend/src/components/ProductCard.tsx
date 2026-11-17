@@ -64,15 +64,15 @@ export function ProductCard({ product }: { product: Product }) {
   )
 }
 
-// Grey placeholder with the card's proportions, shown while a page of products loads.
+// Placeholder with the card's proportions, shown while products load.
 export function ProductCardSkeleton() {
   return (
-    <div className="animate-pulse border border-purple-light bg-purple-deep" aria-hidden="true">
-      <div className="aspect-[5/7] bg-purple-dark" />
+    <div className="border border-purple-light bg-purple-deep" aria-hidden="true">
+      <div className="skeleton aspect-[5/7]" />
       <div className="px-3 pt-3 pb-2">
-        <div className="h-3 w-4/5 bg-purple-dark" />
-        <div className="mt-2 h-3 w-1/3 bg-purple-dark" />
-        <div className="mt-4 h-4 w-1/2 bg-purple-dark" />
+        <div className="skeleton h-3 w-4/5" />
+        <div className="skeleton mt-2 h-3 w-1/3" />
+        <div className="skeleton mt-4 h-4 w-1/2" />
       </div>
     </div>
   )

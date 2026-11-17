@@ -122,3 +122,104 @@
     outline-offset: 2px;
   }
 }
+
+/* --- Motion: loading placeholders, entrances, dialogs (added on day 6 by request) --- */
+
+@theme {
+  /* animate-fade-in, animate-rise-in: short entrances for content that appears after
+     a click (a menu group, revealed tiles, a tab's content). */
+  --animate-fade-in: fade-in 180ms ease-out both;
+  --animate-rise-in: rise-in 220ms ease-out both;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+  @keyframes shimmer {
+    from {
+      background-position: 100% 0;
+    }
+    to {
+      background-position: -100% 0;
+    }
+  }
+}
+
+@layer components {
+  /* Loading placeholder: a block in the shape of the content to come, with a light
+     band sweeping across it ("shimmer"), which reads as "loading" more clearly than
+     a static grey box. Only colours from the palette (overlay + a faint white). */
+  .skeleton {
+    background: linear-gradient(
+        90deg,
+        transparent 25%,
+        rgb(255 255 255 / 0.07) 50%,
+        transparent 75%
+      )
+      0 0 / 200% 100%,
+      var(--color-overlay-item);
+    animation: shimmer 1.4s linear infinite;
+  }
+
+  /* Dialogs slide or fade in. @starting-style gives the values an element starts
+     from when it appears, so a CSS transition can run on its first frame. The way
+     out is driven by data-closing (see useAnimatedClose): the component waits for
+     the transition before it removes the dialog. */
+  .drawer-dialog {
+    transition: translate 250ms ease-out;
+    translate: 0 0;
+    @starting-style {
+      translate: -100% 0;
+    }
+  }
+  .drawer-dialog[data-closing] {
+    translate: -100% 0;
+    transition-timing-function: ease-in;
+  }
+  .pop-dialog {
+    transition:
+      opacity 200ms ease-out,
+      scale 200ms ease-out;
+    @starting-style {
+      opacity: 0;
+      scale: 0.96;
+    }
+  }
+  .pop-dialog[data-closing] {
+    opacity: 0;
+    scale: 0.96;
+  }
+  .drawer-dialog::backdrop,
+  .pop-dialog::backdrop {
+    background-color: rgb(0 0 0 / 0.6);
+    transition: background-color 250ms;
+    @starting-style {
+      background-color: transparent;
+    }
+  }
+  .drawer-dialog[data-closing]::backdrop,
+  .pop-dialog[data-closing]::backdrop {
+    background-color: transparent;
+  }
+}
+
+/* People who ask their system for less motion get (almost) none: no shimmer, no
+   slides, instant scrolling. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after,
+  ::backdrop {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

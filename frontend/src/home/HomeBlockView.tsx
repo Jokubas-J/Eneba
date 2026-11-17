@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { fetchBlockItems, type HomeBlock } from '../api.ts'
 import { blockRenderers } from './blockRenderers.tsx'
-import { BlockError, BlockSection, BlockSkeleton } from './BlockSection.tsx'
+import { BlockError, BlockSection } from './BlockSection.tsx'
 
 // One block: fetches its own data (own loading and error state) and draws it with
 // the renderer of its type. Returns nothing for a type this frontend does not know,
@@ -20,9 +20,10 @@ export function HomeBlockView({ block, dark }: { block: HomeBlock; dark: boolean
   const body = items.isError ? (
     <BlockError onRetry={() => items.refetch()} />
   ) : !items.data ? (
-    <BlockSkeleton height={renderer.height} />
+    renderer.skeleton()
   ) : (
-    renderer.render(items.data)
+    // The real content fades in where the skeleton was.
+    <div className="animate-fade-in">{renderer.render(items.data)}</div>
   )
 
   if (!renderer.framed) return <div>{body}</div>

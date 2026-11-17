@@ -93,7 +93,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
             </p>
           )}
 
-          <Button type="submit" disabled={action.isPending} className="w-full">
+          <Button type="submit" loading={action.isPending} className="w-full">
             {action.isPending ? 'Please wait…' : isLogin ? 'Log in' : 'Create account'}
           </Button>
         </form>

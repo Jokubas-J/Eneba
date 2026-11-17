@@ -16,11 +16,16 @@ export function CategoryGrid({ items }: { items: Category[] }) {
   return (
     <>
       <ul className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-7">
-        {visible.map((category) => (
-          <li key={category.slug}>
+        {visible.map((category, index) => (
+          // Tiles revealed by "Load more" rise in one after another.
+          <li
+            key={category.slug}
+            className={index >= firstRow ? 'animate-rise-in' : undefined}
+            style={index >= firstRow ? { animationDelay: `${(index - firstRow) * 40}ms` } : undefined}
+          >
             <Link
               to={`/store?genre=${encodeURIComponent(category.slug)}`}
-              className="flex h-[135px] flex-col items-center justify-between bg-purple-light p-4 shadow-tile hover:brightness-110"
+              className="flex h-[135px] flex-col items-center justify-between bg-purple-light p-4 shadow-tile transition-[filter,translate] duration-150 hover:-translate-y-0.5 hover:brightness-110"
             >
               <span className="text-sm font-extrabold">{category.count}</span>
               <ContentIcon name={category.icon} className="size-9" />

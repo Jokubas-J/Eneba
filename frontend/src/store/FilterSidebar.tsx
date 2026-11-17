@@ -71,7 +71,7 @@ type CheckboxListProps = {
 
 function CheckboxList({ name, options, selected, onToggle }: CheckboxListProps) {
   if (!options) {
-    return <div className="h-4 animate-pulse bg-purple-base" aria-hidden="true" />
+    return <div className="skeleton h-4" aria-hidden="true" />
   }
   return (
     <ul className="flex flex-col gap-2">

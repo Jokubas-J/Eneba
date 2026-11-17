@@ -2,9 +2,9 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchHomeBlocks } from '../api.ts'
 import { Button } from '../components/Button.tsx'
 import { Page } from '../components/Page.tsx'
-import { BlockSkeleton } from '../home/BlockSection.tsx'
 import { blockRenderers } from '../home/blockRenderers.tsx'
 import { HomeBlockView } from '../home/HomeBlockView.tsx'
+import { HomeSkeleton } from '../home/skeletons.tsx'
 
 // The homepage is whatever GET /api/home says: an ordered list of blocks, each
 // drawn by HomeBlockView, which loads that block's data by itself.
@@ -25,7 +25,11 @@ export function HomePage() {
     )
   }
   if (!layout.data) {
-    return <BlockSkeleton height={310} />
+    return (
+      <div className="-my-6">
+        <HomeSkeleton />
+      </div>
+    )
   }
 
   // Titled bands alternate between the two purples, starting with the lighter one,

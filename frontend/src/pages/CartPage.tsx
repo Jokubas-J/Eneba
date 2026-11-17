@@ -82,7 +82,18 @@ export function CartPage() {
               </Button>
             </div>
           ) : !data ? (
-            <div className="h-[120px] animate-pulse bg-overlay-item" aria-hidden="true" />
+            <div className="flex flex-col gap-2" aria-hidden="true">
+              {[0, 1].map((i) => (
+                <div key={i} className="flex gap-4 bg-overlay-item p-4">
+                  <div className="skeleton h-[84px] w-[60px] shrink-0" />
+                  <div className="flex-1">
+                    <div className="skeleton h-3 w-1/4" />
+                    <div className="skeleton mt-2 h-4 w-2/3" />
+                    <div className="skeleton mt-3 h-3 w-1/5" />
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
             <ul className={`flex flex-col gap-2 ${cart.isPlaceholderData ? 'opacity-60' : ''}`}>
               {data.items.map((item) => (
@@ -108,7 +119,8 @@ export function CartPage() {
           ) : me.data ? (
             <Button
               className="mt-4 w-full"
-              disabled={startCheckout.isPending || !data || data.itemCount === 0 || hasProblems}
+              loading={startCheckout.isPending}
+              disabled={!data || data.itemCount === 0 || hasProblems}
               title={hasProblems ? 'Remove or fix the lines marked in pink first.' : undefined}
               onClick={() => startCheckout.mutate()}
             >

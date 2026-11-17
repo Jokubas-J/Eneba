@@ -85,7 +85,18 @@ function OrderView() {
     return (
       <Page>
         {title}
-        <div className="h-[200px] animate-pulse bg-purple-dark" aria-hidden="true" />
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_380px]" aria-hidden="true">
+          <div className="bg-purple-dark p-4">
+            <div className="skeleton h-[74px]" />
+            <div className="skeleton mt-4 h-5 w-1/4" />
+            <div className="skeleton mt-4 h-[116px]" />
+          </div>
+          <div className="bg-purple-dark p-4">
+            <div className="skeleton h-5 w-1/3" />
+            <div className="skeleton mt-4 h-16" />
+            <div className="skeleton mt-4 h-7" />
+          </div>
+        </div>
       </Page>
     )
   }

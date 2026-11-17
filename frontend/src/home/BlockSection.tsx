@@ -38,12 +38,8 @@ export function BlockSection({
   )
 }
 
-// What a block shows while its data loads or after it failed. Each block has its own,
-// so a slow or broken block never holds up or breaks the others.
-export function BlockSkeleton({ height }: { height: number }) {
-  return <div className="animate-pulse bg-overlay-item" style={{ height }} aria-hidden="true" />
-}
-
+// What a block shows after its data failed to load. Each block has its own, so a broken
+// block never breaks the others (while loading, each shows its own skeleton).
 export function BlockError({ onRetry }: { onRetry: () => void }) {
   return (
     <div role="alert" className="flex flex-col items-center gap-3 bg-overlay-item py-8 text-center">
