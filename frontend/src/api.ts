@@ -50,14 +50,29 @@ export type ProductList = {
   facets: Facets
 }
 
-// ApiError is a failed request with its HTTP status, so a page can tell "not found"
-// (404: show a not-found message) from "something broke" (show a retry button).
+// ApiError is a failed request with its HTTP status and, when the backend sent one,
+// its error code and message ({"error": {"code", "message"}}). A page can then tell
+// "not found" (404) from "wrong password" (401, invalid_credentials) from "something
+// broke" (show a retry button).
 export class ApiError extends Error {
   readonly status: number
+  readonly code: string
 
-  constructor(path: string, status: number) {
-    super(`GET ${path} failed with status ${status}`)
+  constructor(path: string, status: number, code = '', message = '') {
+    super(message || `${path} failed with status ${status}`)
     this.status = status
+    this.code = code
+  }
+}
+
+// Builds an ApiError from a failed response, reading the backend's error body if
+// there is one (a proxy error page, for example, is not JSON).
+async function toApiError(path: string, response: Response): Promise<ApiError> {
+  try {
+    const body = (await response.json()) as { error?: { code?: string; message?: string } }
+    return new ApiError(path, response.status, body.error?.code ?? '', body.error?.message ?? '')
+  } catch {
+    return new ApiError(path, response.status)
   }
 }
 
@@ -72,11 +87,26 @@ async function getJSON<T>(path: string, signal?: AbortSignal): Promise<T> {
   // fetch() only rejects on network failure. A 404 or 500 is a "successful" fetch,
   // so the status has to be checked by hand or errors would be parsed as data.
   if (!response.ok) {
-    throw new ApiError(path, response.status)
+    throw await toApiError(path, response)
   }
   // The cast is a promise to the compiler, not a runtime check: TypeScript types do
   // not exist at runtime, so the shape is only as true as the backend makes it.
   return (await response.json()) as T
+}
+
+// Sends a JSON body with POST. The browser adds the Origin header and, because the
+// URL is on our own domain, the session cookie; nothing has to be set by hand.
+async function postJSON<T>(path: string, body?: unknown): Promise<T> {
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  if (!response.ok) {
+    throw await toApiError(path, response)
+  }
+  // 204 No Content (logout) has no body to parse.
+  return (response.status === 204 ? undefined : await response.json()) as T
 }
 
 export function fetchHealth(): Promise<Health> {
@@ -117,13 +147,15 @@ export type Offer = {
   isCheapest: boolean // the cheapest offer that is in stock
 }
 
-export type ProductVersion = {
-  slug: string
-  name: string
-  platform: Named
-  region: Named
-  priceCents: number | null
-  offerCount: number
+export type Screenshot = {
+  thumbnailUrl: string // 600x338
+  fullUrl: string // 1920x1080
+}
+
+export type ActivationGuide = {
+  notice: string
+  steps: string[]
+  redeemUrl: string | null
 }
 
 export type ProductDetail = {
@@ -140,10 +172,68 @@ export type ProductDetail = {
   developer: string
   publisher: string
   steamAppId: number | null
+  screenshots: Screenshot[]
+  activation: ActivationGuide | null // null when there is no guide for the platform
   offers: Offer[]
-  otherVersions: ProductVersion[]
+  otherVersions: ProductCard[] // same game, other platforms/regions (card shape)
 }
 
 export function fetchProduct(slug: string, signal?: AbortSignal): Promise<ProductDetail> {
   return getJSON<ProductDetail>(`/api/products/${encodeURIComponent(slug)}`, signal)
+}
+
+// --- Accounts (GET/POST /api/auth/...) ---
+
+export type User = {
+  id: number
+  email: string
+}
+
+type UserResponse = { user: User | null }
+
+export async function fetchMe(signal?: AbortSignal): Promise<User | null> {
+  return (await getJSON<UserResponse>('/api/auth/me', signal)).user
+}
+
+export async function register(email: string, password: string): Promise<User> {
+  return (await postJSON<{ user: User }>('/api/auth/register', { email, password })).user
+}
+
+export async function login(email: string, password: string): Promise<User> {
+  return (await postJSON<{ user: User }>('/api/auth/login', { email, password })).user
+}
+
+export function logout(): Promise<void> {
+  return postJSON<void>('/api/auth/logout')
+}
+
+// --- Cart (POST /api/cart/validate) — mirrors catalog.ValidatedCart ---
+
+export type CartLine = {
+  offerId: number
+  quantity: number
+}
+
+export type CartProblem = '' | 'not_found' | 'sold_out' | 'not_enough_stock'
+
+export type CartItem = {
+  offerId: number
+  quantity: number
+  product: { slug: string; name: string; coverUrl: string; platform: Named; region: Named }
+  seller: Seller
+  priceCents: number
+  originalPriceCents: number
+  discountPercent: number
+  stock: number
+  problem: CartProblem
+}
+
+export type ValidatedCart = {
+  items: CartItem[]
+  totalCents: number // lines without a problem only
+  itemCount: number
+}
+
+export function validateCart(lines: CartLine[]): Promise<ValidatedCart> {
+  return postJSON<ValidatedCart>('/api/cart/validate', { items: lines })
 }

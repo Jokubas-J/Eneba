@@ -9,6 +9,7 @@ import '@fontsource/metropolis/600.css'
 import '@fontsource/metropolis/800.css'
 import './index.css'
 import App from './App.tsx'
+import { CartProvider } from './cart/CartContext.tsx'
 
 // One QueryClient for the whole app: it owns the cache of server responses, so two
 // components asking for the same data share one request.
@@ -20,7 +21,10 @@ createRoot(document.getElementById('root')!).render(
       {/* BrowserRouter keeps the UI in sync with the address bar using normal URLs
           (/store, not /#/store); vercel.json sends every such URL to index.html. */}
       <BrowserRouter>
-        <App />
+        {/* Inside the router, because the "Added to cart" dialog navigates. */}
+        <CartProvider>
+          <App />
+        </CartProvider>
       </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>,
