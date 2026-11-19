@@ -6,67 +6,71 @@ checklist item below. IDs (F = functional, T = technical, D = deliverable, P = p
 
 ## 1. Process requirements
 
+> Status 2026-11-19 (day 7): everything built and verified is ticked. Still open: P1 (sending the
+> results, by the author), P2/D3 (the final log export, at the end of the last session) and P4 (the
+> author's own ability to explain the code).
+
 - [ ] **P1** Finish within 7 days of receiving the assignment; reply to the registration e-mail with the results.
 - [ ] **P2** Save a **full** log of AI conversations (prompts and responses) and submit it. → `ai-logs/`
-- [ ] **P3** Show *how* AI was used (they evaluate the process, not only the result).
+- [x] **P3** Show *how* AI was used (they evaluate the process, not only the result).
 - [ ] **P4** Be able to explain the code.
-- [ ] **P5** Decide the scope yourself and **justify** it ("shortcuts are allowed, specs are intentionally vague").
-- [ ] **P6** "A few features done extensively beat many fitting minimal requirements."
+- [x] **P5** Decide the scope yourself and **justify** it ("shortcuts are allowed, specs are intentionally vague").
+- [x] **P6** "A few features done extensively beat many fitting minimal requirements."
 
 ## 2. Functional requirements
 
 ### Store (catalog)
-- [ ] **F1** A catalog page where visitors can browse **every** product.
-- [ ] **F2** Filters that narrow the list (examples given: platform, region, price).
-- [ ] **F3** Change the order (sorting).
-- [ ] **F4** Search by name inside the store.
+- [x] **F1** A catalog page where visitors can browse **every** product.
+- [x] **F2** Filters that narrow the list (examples given: platform, region, price).
+- [x] **F3** Change the order (sorting).
+- [x] **F4** Search by name inside the store.
 
 ### Homepage
-- [ ] **F5** Landing page assembled from **several different blocks** (examples: banner, best sellers, deals).
-- [ ] **F6** Each block gets its content from **its own backend service or database**.
-- [ ] **F7** Frontend only displays what it receives — **nothing hardcoded** in the frontend.
+- [x] **F5** Landing page assembled from **several different blocks** (examples: banner, best sellers, deals).
+- [x] **F6** Each block gets its content from **its own backend service or database**.
+- [x] **F7** Frontend only displays what it receives — **nothing hardcoded** in the frontend.
 
 ### Search
-- [ ] **F8** Search by product name from **anywhere** in the app (→ global search in the header).
-- [ ] **F9** See the matching results.
-- [ ] **F10** Cope with **typos** "where it can".
-- [ ] **F11** Cope with **partial names** "where it can".
+- [x] **F8** Search by product name from **anywhere** in the app (→ global search in the header).
+- [x] **F9** See the matching results.
+- [x] **F10** Cope with **typos** "where it can".
+- [x] **F11** Cope with **partial names** "where it can".
 
 ### Product page
-- [ ] **F12** Page for a single product showing its details.
-- [ ] **F13** Shows **offers from several sellers** so a buyer can compare and choose.
+- [x] **F12** Page for a single product showing its details.
+- [x] **F13** Shows **offers from several sellers** so a buyer can compare and choose.
 
 ### Checkout
-- [ ] **F14** Put products in a cart.
-- [ ] **F15** Pay — simulated or a payment provider's test mode; no real money.
-- [ ] **F16** Receive the **digital key** that was bought.
+- [x] **F14** Put products in a cart.
+- [x] **F15** Pay — simulated or a payment provider's test mode; no real money.
+- [x] **F16** Receive the **digital key** that was bought.
 
 ### Authentication
-- [ ] **F17** Create an account.
-- [ ] **F18** Sign in.
-- [ ] **F19** Some parts are for signed-in users only — named examples: **checkout** and **order history**
+- [x] **F17** Create an account.
+- [x] **F18** Sign in.
+- [x] **F19** Some parts are for signed-in users only — named examples: **checkout** and **order history**
       (so an order history page is implied).
 
 ### Styling
-- [ ] **F20** Looks and feels like Eneba: colors, typography, spacing and components follow the
+- [x] **F20** Looks and feels like Eneba: colors, typography, spacing and components follow the
       design reference. Applies to **every screen** (stated in the flow diagram).
 
 ### Purchase flow (diagram in the PDF)
-- [ ] **F21** Entry points Homepage and Search → Product page → Cart → Checkout → *(sign-in
+- [x] **F21** Entry points Homepage and Search → Product page → Cart → Checkout → *(sign-in
       required)* → Payment → Order and key.
 
 ## 3. Technical requirements
 
-- [ ] **T1** React frontend (TypeScript preferred).
-- [ ] **T2** Backend in PHP or Go.
-- [ ] **T3** REST or GraphQL API.
-- [ ] **T4** Any database; decide the data model yourself.
-- [ ] **T5** Architecture, data model and scope are ours to decide (and to justify).
+- [x] **T1** React frontend (TypeScript preferred).
+- [x] **T2** Backend in PHP or Go.
+- [x] **T3** REST or GraphQL API.
+- [x] **T4** Any database; decide the data model yourself.
+- [x] **T5** Architecture, data model and scope are ours to decide (and to justify).
 
 ## 4. Deliverables ("no evaluation without the following")
 
-- [ ] **D1** GitHub link(s) to the project.
-- [ ] **D2** Public URL of the app deployed on a free-tier service (e.g. Render or Vercel).
+- [x] **D1** GitHub link(s) to the project.
+- [x] **D2** Public URL of the app deployed on a free-tier service (e.g. Render or Vercel).
 - [ ] **D3** Agent chat history — full, prompts and responses — as a Markdown file or a link.
 
 ## 5. Where the spec is vague, and the options

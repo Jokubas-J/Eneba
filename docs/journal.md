@@ -238,3 +238,38 @@ that uses it, not just within one database.
   build the router without a homepage service crashed. Each method is now wrapped in a closure.
 - Stopping a background `npm run dev` left the Vite process running; later runs silently moved to
   other ports. Leftover servers are now stopped by port and command line.
+
+## 2026-11-19 — PLAN day 7 (review and submission preparation)
+
+**Asked by the author:** review PLAN.md, the project folder and GitHub for what is missing, then
+do all of it. The author decided to leave their e-mail address in the old git history.
+
+**Found by the review**
+- No README; the requirements checklist completely unticked; the current session's AI log (most
+  of the build) not yet on GitHub.
+- Promised in PLAN.md but not built: the "waking the server" state for Render's cold start; the
+  store filters as a drawer on phones.
+- Risks: one account could hold an offer's whole stock by checking out without paying;
+  unlimited registration; no security headers; a crashing component would leave a blank page.
+- `ai-logs/hook-errors.log`: one failed export on 2026-11-17 (file locked); later exports fine.
+
+**Built**
+- Per-user limits: 3 unpaid orders, 20 reserved keys (user row locked during checkout).
+- Site-wide sign-up limit: 30 per 10 minutes, checked before password hashing.
+- Wake-up notice after 4 s of loading, reads retried 5 times (~30 s) on network errors and 5xx,
+  error boundary with Reload.
+- Filters drawer on phones; pages loaded on demand (first download 131 KB → 106 KB gzip).
+- Security headers incl. a Content Security Policy; meta description, favicon.
+- `cmd/admin delete-test-accounts` for the production test accounts (dry run by default).
+- `docs/security.md` (review write-up), `README.md`, checklists updated.
+
+**Verified**
+- New backend tests on the test branch (limits incl. 8 parallel checkouts by one user, sign-up
+  limit, test-account cleanup leaving a real customer untouched); 97 frontend tests; e2e.
+- CSP tested twice: locally with the production build, then on the live site in a fresh browser
+  (all pages, images, Categories drawer, redirect to Stripe): no violations, no console errors.
+- Fresh browser on the live site: homepage fully loaded in 2.5 s (server awake).
+
+**Not possible from the assistant's environment**
+- `govulncheck` (blocked: downloads a tool); running the cleanup on production (needs the
+  production database address, which only the author has).
