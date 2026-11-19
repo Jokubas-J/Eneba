@@ -140,6 +140,26 @@ Content, top to bottom, as on eneba.com:
 Enter with nothing highlighted searches the store for the typed text. Arrow keys, Enter, Escape
 and the screen-reader announcements come from Downshift (`useCombobox`); see `docs/tooling.md`.
 
+### Before anything is typed: "Trending searches"
+
+Clicking the empty box opens a list of **10 trending queries**, as on eneba.com (checked on
+2026-11-19: heading "Trending searches", ten queries with a trend icon, no products).
+`GET /api/search/trending` (`Service.Trending`):
+
+1. **Real searches first**: queries searched in the **last 14 days**, most searched first, under
+   the same rules as typed suggestions (curated, or a visitor query searched on 2 different days;
+   the last search found something).
+2. **Filled up** with curated queries for the most popular games: each curated query is matched
+   (whole words) against the normalised product names, ranked by the most popular in-stock
+   product it finds, and only one query per product is kept (the shortest: `witcher`, not also
+   `witcher 3` and `the witcher 3`).
+
+Like Best sellers on the homepage: real data first, popularity only fills the gaps, nothing is
+invented. The list is fetched the first time the box gets focus, not on every page load, and is
+cacheable for a minute. Known limit: the table keeps totals and the last search time, not a
+count per day, so "most searched" means most searched overall among the queries used in the last
+two weeks.
+
 ### Query suggestions
 
 The `search_suggestions` table has two sources:

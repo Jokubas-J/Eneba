@@ -20,6 +20,7 @@ import (
 type Catalog interface {
 	List(ctx context.Context, filter catalog.ListFilter) (catalog.ListResult, error)
 	Suggest(ctx context.Context, text string) (catalog.SuggestResult, error)
+	Trending(ctx context.Context) ([]string, error)
 	Product(ctx context.Context, slug string) (catalog.ProductDetail, error)
 	ValidateCart(ctx context.Context, lines []catalog.CartLine) (catalog.ValidatedCart, error)
 }
@@ -131,6 +132,20 @@ func handleSuggest(products Catalog) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, result)
+	}
+}
+
+// handleTrending serves GET /api/search/trending: the queries the search dropdown
+// shows before anything is typed. Cacheable for a minute, like the homepage.
+func handleTrending(products Catalog) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		queries, err := products.Trending(r.Context())
+		if err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
+		w.Header().Set("Cache-Control", homeCacheControl)
+		writeJSON(w, http.StatusOK, itemsResponse[string]{Items: queries})
 	}
 }
 

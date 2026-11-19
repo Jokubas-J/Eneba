@@ -9,6 +9,7 @@ import {
   type SearchItem,
   searchStateReducer,
   storeSearchUrl,
+  trendingItems,
 } from './searchItems.ts'
 
 const product: ProductCard = {
@@ -108,5 +109,18 @@ describe('searchStateReducer', () => {
       inputValue: 'witc',
       selectedItem: chosen,
     })
+  })
+})
+
+describe('trendingItems', () => {
+  it('turns the trending queries into query entries, in order', () => {
+    expect(trendingItems(['terraria', 'elden ring'])).toEqual([
+      { kind: 'query', query: 'terraria' },
+      { kind: 'query', query: 'elden ring' },
+    ])
+  })
+
+  it('is empty while the queries are still loading', () => {
+    expect(trendingItems(undefined)).toEqual([])
   })
 })

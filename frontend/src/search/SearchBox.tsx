@@ -2,7 +2,8 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useCombobox } from 'downshift'
 import { type FormEvent, type KeyboardEvent, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { fetchSuggestions, type ProductCard } from '../api.ts'
+import { TrendingUp } from 'lucide-react'
+import { fetchSuggestions, fetchTrending, type ProductCard } from '../api.ts'
 import { SearchIcon } from '../components/icons.tsx'
 import { RemoteImage } from '../components/RemoteImage.tsx'
 import { formatPrice } from '../money.ts'
@@ -15,6 +16,7 @@ import {
   type SearchItem,
   searchStateReducer,
   storeSearchUrl,
+  trendingItems,
 } from './searchItems.ts'
 import { useDebouncedValue } from './useDebouncedValue.ts'
 
@@ -53,7 +55,18 @@ export function SearchBox({ initialText }: { initialText: string }) {
     staleTime: 30_000,
   })
 
-  const items = searchable ? buildItems(suggestions.data, debouncedText) : []
+  // Before anything is typed, the dropdown shows "Trending searches", as on eneba.com.
+  // Fetched only once the visitor has used the box (not on every page load), then
+  // kept for a minute.
+  const [boxUsed, setBoxUsed] = useState(false)
+  const trending = useQuery({
+    queryKey: ['trending'],
+    queryFn: fetchTrending,
+    enabled: boxUsed && !searchable,
+    staleTime: 60_000,
+  })
+
+  const items = searchable ? buildItems(suggestions.data, debouncedText) : trendingItems(trending.data)
 
   const { isOpen, highlightedIndex, inputValue, getInputProps, getItemProps, getLabelProps, getMenuProps, closeMenu } =
     useCombobox<SearchItem>({
@@ -95,8 +108,9 @@ export function SearchBox({ initialText }: { initialText: string }) {
     navigate(storeSearchUrl(inputValue))
   }
 
-  const showMenu = isOpen && searchable && suggestions.data !== undefined
-  const nothingFound = showMenu && items.length === 0
+  const showTrending = isOpen && !searchable && items.length > 0
+  const showMenu = showTrending || (isOpen && searchable && suggestions.data !== undefined)
+  const nothingFound = showMenu && searchable && items.length === 0
 
   return (
     <>
@@ -115,6 +129,9 @@ export function SearchBox({ initialText }: { initialText: string }) {
             name: 'text',
             placeholder: 'Search for games, top-ups and more',
             onKeyDown: handleInputKeyDown,
+            // Downshift already opens the list on a click in the box; this makes
+            // sure the trending queries are being fetched by then.
+            onFocus: () => setBoxUsed(true),
           })}
           className={`h-[57px] w-full border border-white pr-2 pl-8 text-search font-extrabold placeholder:text-white focus:outline-2 focus:outline-yellow ${
             showMenu ? 'bg-purple-dark' : 'bg-transparent'
@@ -124,11 +141,19 @@ export function SearchBox({ initialText }: { initialText: string }) {
         {/* The list element must always be in the page (Downshift points the input's
             aria-controls at it); it is only hidden when closed. */}
         <ul
-          {...getMenuProps()}
+          // While it lists trending queries, that is the list's name for screen
+          // readers (the visible heading below is a picture of the same words).
+          {...getMenuProps(showTrending ? { 'aria-label': 'Trending searches', 'aria-labelledby': undefined } : {})}
           className={`absolute inset-x-0 top-full max-h-[70vh] overflow-y-auto bg-purple-light shadow-panel ${
             showMenu && !nothingFound ? '' : 'hidden'
           }`}
         >
+          {showTrending && (
+            // Not an option: Downshift numbers only the items, so arrow keys skip it.
+            <li aria-hidden="true" className="px-4 pt-3 pb-1 text-xs text-text-muted">
+              Trending searches
+            </li>
+          )}
           {showMenu &&
             items.map((item, index) => (
               <li
@@ -138,7 +163,7 @@ export function SearchBox({ initialText }: { initialText: string }) {
                   item.kind === 'product' && items[index - 1]?.kind === 'query' ? 'mt-2' : ''
                 }`}
               >
-                <ItemContent item={item} />
+                <ItemContent item={item} trending={showTrending} />
               </li>
             ))}
         </ul>
@@ -152,12 +177,16 @@ export function SearchBox({ initialText }: { initialText: string }) {
   )
 }
 
-function ItemContent({ item }: { item: SearchItem }) {
+function ItemContent({ item, trending }: { item: SearchItem; trending: boolean }) {
   switch (item.kind) {
     case 'query':
       return (
         <span className="flex items-center gap-2 border-b border-overlay-row px-4 py-2 text-base">
-          <SearchIcon className="size-4 shrink-0" />
+          {trending ? (
+            <TrendingUp className="size-4 shrink-0" aria-hidden="true" strokeWidth={1.75} />
+          ) : (
+            <SearchIcon className="size-4 shrink-0" />
+          )}
           {item.query}
         </span>
       )

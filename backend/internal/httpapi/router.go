@@ -39,6 +39,7 @@ func NewRouter(deps Dependencies) http.Handler {
 	mux.HandleFunc("GET /api/products", handleListProducts(deps.Catalog))
 	mux.HandleFunc("GET /api/products/{slug}", handleProduct(deps.Catalog))
 	mux.HandleFunc("GET /api/search/suggest", handleSuggest(deps.Catalog))
+	mux.HandleFunc("GET /api/search/trending", handleTrending(deps.Catalog))
 	mux.HandleFunc("POST /api/cart/validate", handleValidateCart(deps.Catalog))
 	registerHome(mux, deps.Home)
 	registerMenu(mux, deps.Menu)

@@ -197,3 +197,45 @@ func (s *Service) CuratedSuggestions(ctx context.Context) ([]string, error) {
 func isRecordable(words []string) bool {
 	return len(words) > 0 && len(words) <= maxRecordedWords && len(strings.Join(words, " ")) <= maxRecordedLength
 }
+
+// TrendingSize is how many queries "Trending searches" shows (as on eneba.com).
+const TrendingSize = 10
+
+// trendingDays is how far back a search counts as "trending".
+const trendingDays = 14
+
+// Trending returns what the search dropdown shows before anything is typed: the
+// queries searched most in the last two weeks, then curated queries for the most
+// popular games until there are TrendingSize. Real searches always come first; the
+// curated part only fills the gaps, so nothing is invented.
+func (s *Service) Trending(ctx context.Context) ([]string, error) {
+	recent, err := s.repo.RecentlySearched(ctx, trendingDays, TrendingSize)
+	if err != nil {
+		return nil, err
+	}
+	queries := recent
+	if len(queries) < TrendingSize {
+		// Ask for more than needed: some may already be in the recent list.
+		filler, err := s.repo.CuratedByPopularity(ctx, 2*TrendingSize)
+		if err != nil {
+			return nil, err
+		}
+		seen := map[string]bool{}
+		for _, q := range queries {
+			seen[q] = true
+		}
+		for _, q := range filler {
+			if len(queries) == TrendingSize {
+				break
+			}
+			if !seen[q] {
+				queries = append(queries, q)
+				seen[q] = true
+			}
+		}
+	}
+	if queries == nil {
+		queries = []string{} // [] in JSON
+	}
+	return queries, nil
+}

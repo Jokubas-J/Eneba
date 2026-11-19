@@ -31,6 +31,11 @@ export function buildItems(result: SuggestResult | undefined, typed: string): Se
   return items
 }
 
+// Before anything is typed: the trending queries, as plain query entries.
+export function trendingItems(queries: string[] | undefined): SearchItem[] {
+  return (queries ?? []).map((query): SearchItem => ({ kind: 'query', query }))
+}
+
 export function storeSearchUrl(text: string): string {
   const query = text.trim()
   return query ? `/store?text=${encodeURIComponent(query)}` : '/store'

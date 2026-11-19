@@ -24,6 +24,10 @@ type fakeLister struct {
 	err       error
 }
 
+func (f *fakeLister) Trending(ctx context.Context) ([]string, error) {
+	return []string{"elden ring"}, nil
+}
+
 func (f *fakeLister) Suggest(ctx context.Context, text string) (catalog.SuggestResult, error) {
 	f.called = true
 	f.gotText = text

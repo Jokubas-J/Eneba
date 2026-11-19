@@ -393,3 +393,53 @@ func (r *Repository) CuratedSuggestions(ctx context.Context) ([]string, error) {
 	}
 	return pgx.CollectRows(rows, pgx.RowTo[string])
 }
+
+// RecentlySearched returns the queries searched most in the last `days` days, for
+// "Trending searches". Only queries that would also be shown as typed suggestions
+// qualify: curated ones, or visitor queries searched on at least minVisitorDays
+// different days (the anti-spam rule in docs/search.md), and only if the last search
+// found something.
+func (r *Repository) RecentlySearched(ctx context.Context, days, limit int) ([]string, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT query
+		FROM search_suggestions
+		WHERE (source = 'curated' OR days_searched >= $1)
+		  AND search_count > 0
+		  AND last_searched_at > now() - make_interval(days => $2)
+		  AND COALESCE(last_result_count, 1) > 0
+		ORDER BY search_count DESC, last_searched_at DESC, query
+		LIMIT $3`, minVisitorDays, days, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query recent searches: %w", err)
+	}
+	return pgx.CollectRows(rows, pgx.RowTo[string])
+}
+
+// CuratedByPopularity returns curated queries ranked by the most popular in-stock
+// product each one finds (a whole-word match in the product's normalised name),
+// one query per product: of "witcher", "witcher 3" and "the witcher 3", which all
+// find The Witcher 3, only the shortest is kept. Fills "Trending searches" while
+// there are few real searches, like popularity fills Best sellers.
+func (r *Repository) CuratedByPopularity(ctx context.Context, limit int) ([]string, error) {
+	rows, err := r.pool.Query(ctx, `
+		WITH best AS (
+			-- For every curated query, the most popular in-stock product it finds.
+			SELECT DISTINCT ON (s.query) s.query, l.id AS product_id, l.popularity
+			FROM search_suggestions s
+			JOIN product_listing l
+			  ON ' ' || l.search_name || ' ' LIKE '% ' || s.query || ' %'
+			WHERE s.source = 'curated' AND l.offer_count > 0
+			ORDER BY s.query, l.popularity DESC, l.id
+		), one_per_product AS (
+			SELECT DISTINCT ON (product_id) query, popularity
+			FROM best
+			ORDER BY product_id, length(query), query
+		)
+		SELECT query FROM one_per_product
+		ORDER BY popularity DESC, query
+		LIMIT $1`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query curated by popularity: %w", err)
+	}
+	return pgx.CollectRows(rows, pgx.RowTo[string])
+}

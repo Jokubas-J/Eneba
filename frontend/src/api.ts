@@ -353,3 +353,10 @@ export type MenuSection = {
 export async function fetchMenu(): Promise<MenuSection[]> {
   return (await getJSON<{ items: MenuSection[] }>('/api/menu')).items
 }
+
+// What the search dropdown shows before anything is typed (GET /api/search/trending):
+// the most searched queries of the last two weeks, filled up with curated queries
+// for the most popular games.
+export async function fetchTrending(): Promise<string[]> {
+  return (await getJSON<{ items: string[] }>('/api/search/trending')).items
+}
