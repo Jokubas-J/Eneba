@@ -157,3 +157,22 @@ What it does on its own (`frontend/playwright.config.ts`):
 
 Do not run it at the same time as `go test ./...`: both use the test branch, and the Go tests
 replace the catalog with their own small fixtures.
+
+## 8. Deleting test accounts from production (day 7)
+
+While verifying the live site, a few accounts were created in production:
+`cookie-check-…@example.com` (session cookie check), `stripe-live-check-…@example.com` (Stripe
+test-card purchases) and `jokubas.very-long-name-…@example.com` (header check). Their test
+purchases also count in "Best sellers".
+
+`cmd/admin delete-test-accounts` removes them in one transaction: the keys their orders took go
+back on sale, their orders and sessions are deleted, then the accounts. Without `-yes` it only
+lists what it would do. Patterns that could match every account (`%`, `%@…`) are refused.
+
+```powershell
+cd backend
+$env:DATABASE_URL = "<Neon main connection string>"   # production; not stored anywhere
+go run ./cmd/admin delete-test-accounts -email 'cookie-check-%@example.com' -email 'stripe-live-check-%@example.com' -email 'jokubas.very-long-name-%@example.com'
+# check the list it prints, then run the same command again with -yes at the end
+Remove-Item Env:DATABASE_URL
+```
