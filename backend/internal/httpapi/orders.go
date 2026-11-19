@@ -72,6 +72,10 @@ func (h orderHandlers) checkout(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "out_of_stock",
 			"Not enough keys left for "+outOfStock.ProductName+" ("+strconv.Itoa(outOfStock.Available)+" available).")
 		return
+	case errors.Is(err, orders.ErrTooManyPending):
+		writeError(w, http.StatusConflict, "too_many_pending",
+			"You have unpaid orders holding keys. Pay for them in My orders, or wait until they expire (at most 30 minutes).")
+		return
 	case errors.Is(err, orders.ErrOfferNotFound):
 		writeError(w, http.StatusConflict, "offer_unavailable", "An offer in your cart is no longer available.")
 		return

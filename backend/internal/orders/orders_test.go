@@ -487,3 +487,94 @@ func TestEveryOrderGetsAUniquePaymentReference(t *testing.T) {
 		t.Errorf("%d distinct references, want 3", len(seen))
 	}
 }
+
+func TestPendingOrderLimits(t *testing.T) {
+	t.Run("at most MaxPendingOrders unpaid orders", func(t *testing.T) {
+		f := setup(t, &fakeProvider{}, 2)
+		for i := range orders.MaxPendingOrders {
+			if _, err := f.service.Checkout(f.ctx, f.users[0], []catalog.CartLine{{OfferID: f.many, Quantity: 1}}); err != nil {
+				t.Fatalf("checkout %d: %v", i+1, err)
+			}
+		}
+		_, err := f.service.Checkout(f.ctx, f.users[0], []catalog.CartLine{{OfferID: f.last, Quantity: 1}})
+		if !errors.Is(err, orders.ErrTooManyPending) {
+			t.Fatalf("checkout %d: error = %v, want ErrTooManyPending", orders.MaxPendingOrders+1, err)
+		}
+		// The refused checkout reserved nothing, and another user is not affected.
+		if got := f.keyCounts(t, f.last); got["available"] != 1 {
+			t.Errorf("last key = %v, want still available", got)
+		}
+		if _, err := f.service.Checkout(f.ctx, f.users[1], []catalog.CartLine{{OfferID: f.last, Quantity: 1}}); err != nil {
+			t.Errorf("another user: %v", err)
+		}
+	})
+
+	t.Run("paying or expiry frees a place", func(t *testing.T) {
+		f := setup(t, &fakeProvider{}, 1)
+		var ids []int64
+		for range orders.MaxPendingOrders {
+			r, err := f.service.Checkout(f.ctx, f.users[0], []catalog.CartLine{{OfferID: f.many, Quantity: 1}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			ids = append(ids, r.OrderID)
+		}
+		// One order runs out of time (its clean-up has not run yet): it no longer counts.
+		if _, err := f.pool.Exec(f.ctx, `UPDATE orders SET expires_at = now() - interval '1 minute' WHERE id = $1`, ids[0]); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.service.Checkout(f.ctx, f.users[0], []catalog.CartLine{{OfferID: f.many, Quantity: 1}}); err != nil {
+			t.Errorf("after one order expired: %v", err)
+		}
+	})
+
+	t.Run("at most MaxReservedKeys keys held", func(t *testing.T) {
+		f := setup(t, &fakeProvider{}, 1)
+		// 25 more keys on the "many" offer, enough to reach the limit.
+		bigOffer := f.many
+		_, err := f.pool.Exec(f.ctx, `
+			INSERT INTO license_keys (offer_id, key_value)
+			SELECT $1, 'BIG-' || n FROM generate_series(1, 25) n`, bigOffer)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.service.Checkout(f.ctx, f.users[0], []catalog.CartLine{{OfferID: bigOffer, Quantity: 10}}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.service.Checkout(f.ctx, f.users[0], []catalog.CartLine{{OfferID: bigOffer, Quantity: 10}}); err != nil {
+			t.Fatalf("20 keys in total is allowed: %v", err)
+		}
+		if _, err := f.service.Checkout(f.ctx, f.users[0], []catalog.CartLine{{OfferID: f.many, Quantity: 1}}); !errors.Is(err, orders.ErrTooManyPending) {
+			t.Errorf("21st key: error = %v, want ErrTooManyPending", err)
+		}
+	})
+
+	t.Run("simultaneous checkouts of one user cannot pass the limit together", func(t *testing.T) {
+		f := setup(t, &fakeProvider{}, 1)
+		const attempts = 8
+		var wg sync.WaitGroup
+		errs := make([]error, attempts)
+		start := make(chan struct{})
+		for i := range attempts {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-start
+				_, errs[i] = f.service.Checkout(f.ctx, f.users[0], []catalog.CartLine{{OfferID: f.many, Quantity: 1}})
+			}()
+		}
+		close(start)
+		wg.Wait()
+		ok := 0
+		for _, err := range errs {
+			if err == nil {
+				ok++
+			} else if !errors.Is(err, orders.ErrTooManyPending) {
+				t.Errorf("unexpected error: %v", err)
+			}
+		}
+		if ok != orders.MaxPendingOrders {
+			t.Errorf("%d checkouts went through, want exactly %d", ok, orders.MaxPendingOrders)
+		}
+	})
+}

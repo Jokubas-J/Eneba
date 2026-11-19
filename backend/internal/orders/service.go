@@ -85,6 +85,10 @@ func (s *Service) createOrderAndReserve(ctx context.Context, userID int64, lines
 	}
 	defer tx.Rollback(ctx) // no effect after Commit
 
+	if err := checkPendingLimits(ctx, tx, userID, lines); err != nil {
+		return Order{}, err
+	}
+
 	order := Order{Status: StatusPending, Currency: "EUR", Provider: s.provider.Name()}
 	// The expiry comes from the database clock, like every other time comparison,
 	// so the server's own clock cannot disagree with it.
@@ -163,6 +167,39 @@ func (s *Service) createOrderAndReserve(ctx context.Context, userID int64, lines
 		return Order{}, err
 	}
 	return order, nil
+}
+
+// checkPendingLimits refuses a checkout when the user already holds
+// MaxPendingOrders unpaid orders, or when the new order would take their reserved
+// keys past MaxReservedKeys.
+//
+// It first locks the user's row (FOR UPDATE) until the transaction ends. Without
+// that, two checkouts of the same user at the same moment could both count "2
+// pending" and both go ahead; with it, the second waits until the first has
+// committed and then counts 3. Checkouts of different users do not wait for each other.
+func checkPendingLimits(ctx context.Context, tx pgx.Tx, userID int64, lines []catalog.CartLine) error {
+	if _, err := tx.Exec(ctx, `SELECT 1 FROM users WHERE id = $1 FOR UPDATE`, userID); err != nil {
+		return fmt.Errorf("lock user %d: %w", userID, err)
+	}
+	var pendingOrders, reservedKeys int
+	// Only orders that still hold keys: an expired order whose clean-up has not run
+	// yet does not count against the user.
+	err := tx.QueryRow(ctx, `
+		SELECT count(DISTINCT o.id), COALESCE(sum(i.quantity), 0)
+		FROM orders o
+		JOIN order_items i ON i.order_id = o.id
+		WHERE o.user_id = $1 AND o.status = 'pending' AND o.expires_at > now()`, userID).Scan(&pendingOrders, &reservedKeys)
+	if err != nil {
+		return fmt.Errorf("count pending orders: %w", err)
+	}
+	wanted := 0
+	for _, line := range lines {
+		wanted += line.Quantity
+	}
+	if pendingOrders >= MaxPendingOrders || reservedKeys+wanted > MaxReservedKeys {
+		return ErrTooManyPending
+	}
+	return nil
 }
 
 // markPaid is the single place where an order becomes paid and its keys sold. It is

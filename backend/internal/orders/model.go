@@ -25,6 +25,14 @@ const ReservationTime = 30 * time.Minute
 // releasing its keys. A "paid" webhook that is merely late is processed within it.
 const ExpiryGrace = 5 * time.Minute
 
+// Limits per user on unpaid orders. Every checkout holds its keys for
+// ReservationTime; without a limit one account (or a script) could keep checking out
+// without paying and hold an offer's whole stock, so nobody else could buy it.
+const (
+	MaxPendingOrders = 3  // unpaid orders at the same time
+	MaxReservedKeys  = 20 // keys held by those orders together, the new one included
+)
+
 var (
 	ErrNotFound      = errors.New("order not found")
 	ErrEmptyCart     = errors.New("the cart is empty")
@@ -32,6 +40,8 @@ var (
 	ErrOrderExpired  = errors.New("the order has expired")
 	ErrInvalidCart   = errors.New("invalid cart")
 	ErrOfferNotFound = errors.New("an offer in the cart is no longer available")
+	// ErrTooManyPending: the user already holds too many unpaid orders or keys.
+	ErrTooManyPending = errors.New("too many unpaid orders")
 )
 
 // OutOfStockError says which offer did not have enough keys at checkout.
