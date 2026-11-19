@@ -57,6 +57,10 @@ func (h authHandlers) register(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, auth.ErrEmailTaken):
 		writeError(w, http.StatusConflict, "email_taken", capitalize(err.Error()))
 		return
+	case errors.Is(err, auth.ErrTooManySignups):
+		w.Header().Set("Retry-After", "600")
+		writeError(w, http.StatusTooManyRequests, "too_many_signups", capitalize(err.Error()))
+		return
 	case err != nil:
 		writeInternalError(w, r, err)
 		return

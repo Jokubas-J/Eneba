@@ -23,6 +23,7 @@ var (
 	ErrEmailTaken         = errors.New("an account with this e-mail address already exists")
 	ErrInvalidCredentials = errors.New("wrong e-mail address or password")
 	ErrTooManyAttempts    = errors.New("too many failed sign-in attempts, try again later")
+	ErrTooManySignups     = errors.New("too many new accounts right now, please try again in a few minutes")
 )
 
 const (
@@ -40,6 +41,14 @@ const (
 	// attempts for that address until the window has passed.
 	maxFailedLogins   = 5
 	failedLoginWindow = 15 * time.Minute
+
+	// New accounts for the whole site within the window. Site-wide rather than per
+	// client: like the login limiter, it does not trust a client IP taken from a
+	// proxy header. Counted in the database, so it survives restarts. The trade-off:
+	// a flood of sign-ups pauses registration for everyone for a few minutes; a real
+	// shop would add e-mail verification or a CAPTCHA.
+	MaxSignupsPerWindow = 30
+	signupWindow        = 10 * time.Minute
 )
 
 // User is the signed-in account as the rest of the application sees it.
@@ -103,6 +112,17 @@ func (s *Service) Register(ctx context.Context, email, password string) (User, s
 	}
 	if err := validatePassword(password); err != nil {
 		return User{}, "", err
+	}
+	// Checked before hashing: Argon2 is deliberately expensive, so a stream of sign-ups
+	// should not get to make the server hash.
+	var recent int
+	err = s.pool.QueryRow(ctx, `SELECT count(*) FROM users WHERE created_at > now() - make_interval(secs => $1)`,
+		signupWindow.Seconds()).Scan(&recent)
+	if err != nil {
+		return User{}, "", fmt.Errorf("count recent sign-ups: %w", err)
+	}
+	if recent >= MaxSignupsPerWindow {
+		return User{}, "", ErrTooManySignups
 	}
 	hash, err := HashPassword(password)
 	if err != nil {

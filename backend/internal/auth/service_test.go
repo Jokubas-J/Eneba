@@ -170,3 +170,25 @@ func TestLoginIsLimitedAfterRepeatedFailures(t *testing.T) {
 		t.Errorf("error = %v, want ErrTooManyAttempts", err)
 	}
 }
+
+func TestSignupsAreLimitedSiteWide(t *testing.T) {
+	service, pool, ctx := newService(t)
+	// Fill the window with accounts created just now (directly, to keep the test fast:
+	// Register would hash 30 passwords).
+	_, err := pool.Exec(ctx, `
+		INSERT INTO users (email, password_hash)
+		SELECT 'bulk' || n || '@example.com', 'x' FROM generate_series(1, $1) n`, auth.MaxSignupsPerWindow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := service.Register(ctx, "one-too-many@example.com", "long enough password"); !errors.Is(err, auth.ErrTooManySignups) {
+		t.Fatalf("Register error = %v, want ErrTooManySignups", err)
+	}
+	// Once those accounts are older than the window, sign-ups work again.
+	if _, err := pool.Exec(ctx, `UPDATE users SET created_at = now() - interval '11 minutes'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := service.Register(ctx, "later@example.com", "long enough password"); err != nil {
+		t.Fatalf("after the window: %v", err)
+	}
+}

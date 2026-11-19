@@ -9,7 +9,7 @@ Tests: `auth_unit_test.go`, `service_test.go` (against the test database), `http
 
 | Method & path | Body | Success | Errors |
 |---|---|---|---|
-| `POST /api/auth/register` | `{email, password}` | 201 `{user}` + session cookie | 400 `invalid_request` (address, password length), 409 `email_taken` |
+| `POST /api/auth/register` | `{email, password}` | 201 `{user}` + session cookie | 400 `invalid_request` (address, password length), 409 `email_taken`, 429 `too_many_signups` |
 | `POST /api/auth/login` | `{email, password}` | 200 `{user}` + session cookie | 401 `invalid_credentials`, 429 `too_many_attempts` |
 | `POST /api/auth/logout` | – | 204, cookie deleted | – (always succeeds) |
 | `GET /api/auth/me` | – | 200 `{user}` or `{user: null}` | 500 if the database fails |
@@ -41,6 +41,7 @@ Every state-changing request from another site's page gets 403 `forbidden_origin
 | Two registrations of the same address at once | The database's UNIQUE constraint lets exactly one succeed; the other gets 409. | A SELECT-then-INSERT check would leave a gap between the two steps. | `…/the same address cannot register twice, in any letter case` |
 | Expired or forged token | `UserBySession` only accepts a token whose hash exists and has `expires_at > now()`; `/me` then also deletes the useless cookie. Expired rows of a user are removed at their next login. | No background job needed. | `TestSessions`, `TestMe` |
 | Database error during `/me` | 500, not "signed out". | A failure must not look like a logout to the frontend (it would show the wrong header and redirect wrongly). | `TestMe/a failing session lookup is a 500` |
+| Mass account creation (spam, or making the server hash passwords non-stop) | At most 30 new accounts site-wide per 10 minutes (429 with `Retry-After`), counted in the database and checked **before** the password is hashed. | Site-wide, not per IP, for the same reason as the login limit. **Trade-off:** a flood pauses sign-ups for everyone for a few minutes; a real shop would add e-mail verification or a CAPTCHA. Survives restarts because it counts rows, not memory. | `TestSignupsAreLimitedSiteWide` |
 | Very long password or body | Passwords are limited to 128 characters; request bodies to 64 KiB. | Hashing is deliberately expensive; unbounded input would be a cheap way to load the server. | `TestValidatePassword` |
 | Weak password rules | Minimum 8 characters, no composition rules, spaces allowed. | NIST SP 800-63B: length matters, "one digit and one symbol" rules mostly produce predictable passwords. | `TestValidatePassword` |
 | Open redirect after login (`/login?next=https://evil.example`) | The frontend only follows `next` if it is a path on this site (starts with one `/`, not `//` or `/\`). | Otherwise the login page could send people to a phishing copy of itself. | `safeNextPath.test.ts` |
