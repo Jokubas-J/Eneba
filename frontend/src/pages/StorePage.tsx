@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import type { ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { type Facets, fetchProducts } from '../api.ts'
 import { Button } from '../components/Button.tsx'
@@ -8,6 +8,7 @@ import { PageTitle } from '../components/PageTitle.tsx'
 import { ProductCard, ProductCardSkeleton } from '../components/ProductCard.tsx'
 import { centsToEuros } from '../money.ts'
 import { FilterSidebar } from '../store/FilterSidebar.tsx'
+import { FiltersDrawer } from '../store/FiltersDrawer.tsx'
 import { Pagination } from '../store/Pagination.tsx'
 import {
   clearAll,
@@ -62,6 +63,19 @@ export function StorePage() {
 
   const data = products.data
   const pageCount = data ? Math.ceil(data.total / data.pageSize) : 0
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  // How many filters are on, for the phone's "Filters (3)" button.
+  const activeCount =
+    groupKeys.reduce((sum, key) => sum + filters.groups[key].length, 0) +
+    (filters.priceMin !== null || filters.priceMax !== null ? 1 : 0)
+  const sidebar = (
+    <FilterSidebar
+      filters={filters}
+      facets={data?.facets}
+      onToggle={(key, slug) => apply(toggleGroupValue(filters, key, slug))}
+      onPriceChange={(min, max) => apply(setPriceRange(filters, min, max))}
+    />
+  )
 
   return (
     <Page>
@@ -69,14 +83,19 @@ export function StorePage() {
       <h1 className="text-heading font-bold">{filters.text ? `Results for “${filters.text}”` : 'Store'}</h1>
 
       <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-start">
-        <aside className="md:w-[220px] md:shrink-0" aria-label="Filters">
-          <FilterSidebar
-            filters={filters}
-            facets={data?.facets}
-            onToggle={(key, slug) => apply(toggleGroupValue(filters, key, slug))}
-            onPriceChange={(min, max) => apply(setPriceRange(filters, min, max))}
-          />
+        {/* Wide screens: the sidebar. Phones: a button that opens the same filters
+            in a drawer, so the results are not pushed far down the page. */}
+        <aside className="hidden md:block md:w-[220px] md:shrink-0" aria-label="Filters">
+          {sidebar}
         </aside>
+        <Button variant="outline" className="w-full md:hidden" aria-haspopup="dialog" onClick={() => setFiltersOpen(true)}>
+          {activeCount > 0 ? `Filters (${activeCount})` : 'Filters'}
+        </Button>
+        {filtersOpen && (
+          <FiltersDrawer resultCount={data ? data.total : null} onClose={() => setFiltersOpen(false)}>
+            {sidebar}
+          </FiltersDrawer>
+        )}
 
         <section className="min-w-0 flex-1" aria-label="Products">
           {hasActiveFilters(filters) && (
