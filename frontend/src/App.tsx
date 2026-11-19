@@ -1,17 +1,24 @@
+import { lazy } from 'react'
 import { Route, Routes } from 'react-router'
 import { AuthLayout } from './components/AuthLayout.tsx'
 import { CheckoutLayout } from './components/CheckoutLayout.tsx'
 import { Layout } from './components/Layout.tsx'
 import { PageTitle } from './components/PageTitle.tsx'
-import { AuthPage } from './pages/AuthPage.tsx'
-import { CartPage } from './pages/CartPage.tsx'
 import { HomePage } from './pages/HomePage.tsx'
-import { NotFoundPage } from './pages/NotFoundPage.tsx'
-import { OrderPage } from './pages/OrderPage.tsx'
-import { OrdersPage } from './pages/OrdersPage.tsx'
-import { ProductPage } from './pages/ProductPage.tsx'
-import { SimulatedPaymentPage } from './pages/SimulatedPaymentPage.tsx'
-import { StorePage } from './pages/StorePage.tsx'
+
+// Every page except the homepage is a separate file the browser downloads only when
+// that page is first opened (code splitting), so the first visit loads less.
+// React.lazy expects a default export; our pages are named exports, hence the .then.
+const AuthPage = lazy(() => import('./pages/AuthPage.tsx').then((m) => ({ default: m.AuthPage })))
+const CartPage = lazy(() => import('./pages/CartPage.tsx').then((m) => ({ default: m.CartPage })))
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage.tsx').then((m) => ({ default: m.NotFoundPage })))
+const OrderPage = lazy(() => import('./pages/OrderPage.tsx').then((m) => ({ default: m.OrderPage })))
+const OrdersPage = lazy(() => import('./pages/OrdersPage.tsx').then((m) => ({ default: m.OrdersPage })))
+const ProductPage = lazy(() => import('./pages/ProductPage.tsx').then((m) => ({ default: m.ProductPage })))
+const SimulatedPaymentPage = lazy(() =>
+  import('./pages/SimulatedPaymentPage.tsx').then((m) => ({ default: m.SimulatedPaymentPage })),
+)
+const StorePage = lazy(() => import('./pages/StorePage.tsx').then((m) => ({ default: m.StorePage })))
 
 // The route table: which page component belongs to which URL. The shop pages share
 // Layout (header and footer); the sign-in pages AuthLayout (logo and a link row);

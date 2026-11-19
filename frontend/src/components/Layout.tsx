@@ -1,10 +1,13 @@
-import { Outlet } from 'react-router'
+import { Outlet, useLocation } from 'react-router'
+import { ErrorBoundary } from './ErrorBoundary.tsx'
+import { PageSuspense } from './PageFallback.tsx'
 import { Footer } from './Footer.tsx'
 import { Header } from './Header.tsx'
 
 // The frame shared by every page. <Outlet /> is where the router renders the page
 // that matches the current URL (like @RenderBody() in an ASP.NET layout).
 export function Layout() {
+  const { pathname } = useLocation()
   return (
     // A full-height column, with the middle part growing: on a short page the
     // footer still sits at the bottom of the window instead of floating mid-screen.
@@ -21,7 +24,13 @@ export function Layout() {
       {/* No width here: each page picks its own with <Page>, because the product
           page is wider than the rest (as on eneba.com). */}
       <main id="main" tabIndex={-1} className="flex-1 py-6 focus:outline-none">
-        <Outlet />
+        {/* A crashing page leaves the header and footer usable; going to another
+            page (a new pathname) clears the error. */}
+        <ErrorBoundary resetKey={pathname}>
+          <PageSuspense>
+            <Outlet />
+          </PageSuspense>
+        </ErrorBoundary>
       </main>
       <Footer />
     </div>

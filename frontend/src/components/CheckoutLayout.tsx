@@ -1,4 +1,5 @@
 import { Link, Outlet } from 'react-router'
+import { PageSuspense } from './PageFallback.tsx'
 
 const steps = ['Cart', 'Payment', 'Get your product']
 
@@ -39,7 +40,9 @@ export function CheckoutLayout({ step }: { step: number }) {
         </div>
       </header>
       <main className="flex-1 py-8">
-        <Outlet />
+        <PageSuspense>
+          <Outlet />
+        </PageSuspense>
       </main>
     </div>
   )

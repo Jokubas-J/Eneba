@@ -1,4 +1,5 @@
 import { Link, Outlet } from 'react-router'
+import { PageSuspense } from './PageFallback.tsx'
 
 // The frame of the sign-in pages, as on eneba.com (measured with Playwright on
 // my.eneba.com/login): a standalone page without the shop header, navigation strip or
@@ -16,7 +17,9 @@ export function AuthLayout() {
       </header>
 
       <main className="flex flex-1 items-center py-10">
-        <Outlet />
+        <PageSuspense>
+          <Outlet />
+        </PageSuspense>
       </main>
 
       <footer className="px-6 pb-6">
